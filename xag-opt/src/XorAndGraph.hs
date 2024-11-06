@@ -3,67 +3,94 @@
 
 module XorAndGraph (XagNode (..), Xag (..), valid) where
 
+import GHC.Float (sqrtFloat)
 import GHC.Generics (Generic)
 import Test.QuickCheck
 
+{-
+The Xag is a list of XagNode; each node has a nodeId, uniquely identifying it.
+Nodes are ordered by increasing nodeId, and the graph should be acyclic, with
+each XagNode referring only to prior XagNodes via its inputs. References to
+nodeIds not in the list are free variables.
+
+valid checks these properties.
+
+Note that although the Const node can take value True or False, only True is
+useful in analysis -- False inputs to Xor can be trivially pruned, and False
+inputs to And mean the And can be trivially converted to a Const False.
+
+The Arbitrary makes a valid, arbitrary Xag with (size permitting) one True
+Const node, a gap for free variables, and then a number of Xor and And nodes
+to fill the list to the arbitrary size. Inputs are weighted to prefer earlier
+nodes, so as to make shallower graphs.
+-}
+
 data XagNode
-  = Xor !Int ![Int]
-  | And !Int ![Int]
-  | Const !Int !Bool
-  | Var !Int !Int
+  = Const {nodeId :: !Int, value :: !Bool}
+  | Xor {nodeId :: !Int, inputs :: ![Int]}
+  | And {nodeId :: !Int, inputs :: ![Int]}
   deriving (Eq, Generic, Ord, Show)
 
 newtype Xag = Xag [XagNode] deriving (Eq, Generic, Ord, Show)
 
-valid :: [XagNode] -> Bool
-valid = validNodes 0
+valid :: Xag -> Bool
+valid (Xag ns) = validNodes 0 ns
   where
     validNodes _ [] = True
-    validNodes count (node : nodes) = validNode count node && validNodes (count + 1) nodes
-    validNode count (Xor n inNs) = (n == count) && validList n inNs
-    validNode count (And n inNs) = (n == count) && validList n inNs
-    validNode count (Const n _) = n == count
-    validNode count (Var n _) = n == count
+    validNodes nextId (node : nodes) = validNode nextId node && validNodes (nodeId node + 1) nodes
+    validNode nextId (Xor n inNs) = (n >= nextId) && validList n inNs
+    validNode nextId (And n inNs) = (n >= nextId) && validList n inNs
+    validNode nextId (Const n _) = n >= nextId
+    -- validNode nextId (Var n) = n >= nextId
     validList _ [] = False
     validList n inNs = all (>= 0) inNs && all (< n) inNs
 
 instance Arbitrary Xag where
   arbitrary :: Gen Xag
   arbitrary = do
-    s <- getSize
-    nodes <- mapM genNode [2 .. s + 2]
-    return $ Xag ([Const 0 False, Const 1 True] ++ nodes)
+    nNodes <- getSize
+    let constNodes = [Const 0 True | nNodes > 0]
+    let nVarNodes = length constNodes + (floor . sqrtFloat . fromIntegral) nNodes
+    let nXaNodes = nNodes + (nVarNodes - length constNodes)
+    -- varNodes <- mapM genVarNode [length constNodes .. nVarNodes - 1]
+    xaNodes <- mapM genXANode [nVarNodes .. nXaNodes - 1]
+    return $ Xag (constNodes {- ++ varNodes -} ++ xaNodes)
     where
-      genNode n = oneof [genBinary n Xor, genBinary n And]
+      -- genVarNode = return . Var
+      genXANode n = oneof [genBinary n Xor, genBinary n And]
 
       genBinary n xa = do
         inputsCount <- choose (2 :: Int, 5)
-        inputs <- genInputs inputsCount [0 .. n - 1]
-        return $ xa n inputs
+        newInputs <- genInputs inputsCount [0 .. n - 1]
+        return $ xa n newInputs
 
       genInputs 0 _ = return []
       genInputs n [] = mapM (const $ choose (0, 1)) [0 .. n - 1]
-      genInputs n list = oneof [genConstInputs n 0 list, genConstInputs n 1 list, genListInputs n list]
+      genInputs n list = oneof [genConstInputs n list, genListInputs n list]
 
-      genConstInputs n k list = do
+      genConstInputs n list = do
+        k <- choose (0, 1)
         moreInputs <- genInputs (n - 1) list
         return (k : moreInputs)
 
+      genListInputs _ [] = undefined
       genListInputs n list = do
         (input, listRemain) <- genTakeOneFromList list
         moreInputs <- genInputs (n - 1) listRemain
         return (input : moreInputs)
 
+      genTakeOneFromList [] = undefined
       genTakeOneFromList list = do
-        index <- genIndex (length list - 1)
+        index <- genIndex (length list)
         let (hd, taken, tl) = case splitAt index list of
               (h, x : t) -> (h, x, t)
               _ -> undefined -- can't happen, but _you_ tell that to GHC
         return (taken, hd ++ tl)
 
+      genIndex 0 = undefined
       genIndex n = do
-        unbiased <- choose (0, n * n * n - 1)
-        return $ unbiased `div` (n * n)
+        unbiased <- choose (0, n * n - 1)
+        return $ unbiased `div` n
 
 -- eval :: Xag a -> (b -> b -> b) -> (b -> b -> b) -> (a -> b) -> b
 -- eval (Xor x y) xorF andF litF = xorF (eval x xorF andF litF) (eval y xorF andF litF)
