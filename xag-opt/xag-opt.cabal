@@ -59,7 +59,9 @@ library
   import:           warnings
 
   -- Modules exported by the library.
-  exposed-modules:  XorAndGraph
+  exposed-modules:
+    Xag.AffineEquivalence
+    Xag.Graph
 
   -- Modules included in this library but not exported.
   -- other-modules:
@@ -70,6 +72,7 @@ library
   -- Other library packages from which modules are imported.
   build-depends:
     , base        ^>=4.17.2.1
+    , containers  ^>=0.6
     , QuickCheck  ^>=2.15
 
   -- Directories containing source files.
@@ -127,5 +130,6 @@ test-suite xag-opt-test
   -- Test dependencies.
   build-depends:
     , base        ^>=4.17.2.1
+    , containers  ^>=0.6
     , QuickCheck  ^>=2.15
     , xag-opt
