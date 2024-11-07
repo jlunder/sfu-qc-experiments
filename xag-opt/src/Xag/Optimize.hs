@@ -7,3 +7,4 @@ import Xag.Graph
 
 dowork :: Maybe (Map.Map Int Bool)
 dowork = solve (Var (2 :: Int) :<->: Yes)
+
