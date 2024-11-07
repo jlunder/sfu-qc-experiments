@@ -62,6 +62,7 @@ library
   exposed-modules:
     Xag.AffineEquivalence
     Xag.Graph
+    Xag.Optimize
 
   -- Modules included in this library but not exported.
   -- other-modules:
@@ -71,9 +72,10 @@ library
 
   -- Other library packages from which modules are imported.
   build-depends:
-    , base        ^>=4.17.2.1
-    , containers  ^>=0.6
-    , QuickCheck  ^>=2.15
+    , base            ^>=4.17.2.1
+    , containers      ^>=0.6
+    , minisat-solver  ^>=0.1
+    , QuickCheck      ^>=2.15
 
   -- Directories containing source files.
   hs-source-dirs:   src
@@ -96,7 +98,9 @@ executable xag-opt
 
   -- Other library packages from which modules are imported.
   build-depends:
-    , base     ^>=4.17.2.1
+    , base                  ^>=4.17.2.1
+    , optparse-applicative  ^>=0.18.1.0
+    , optparse-simple       ^>=0.1.1.4
     , xag-opt
 
   -- Directories containing source files.
