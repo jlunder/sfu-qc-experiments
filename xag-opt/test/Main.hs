@@ -1,8 +1,9 @@
 module Main (main) where
 
-import qualified Data.Set as Set
+import qualified Data.IntSet as IntSet
 import Test.QuickCheck
 import Xag.Graph as Xag
+import Xag.Optimize
 
 {-
   xag2 <- generate (resize 0 (arbitrary :: Gen Xag))
@@ -19,42 +20,11 @@ import Xag.Graph as Xag
   print xag7
 -}
 
-prop_valid :: Xag.Graph -> Bool
-prop_valid = valid
+-- IntSet.intersection (freeVariables g) (outputs g) == IntSet.empty
 
-prop_freeVarsNotInOutputs :: Xag.Graph -> Bool
-prop_freeVarsNotInOutputs g =
-  Set.intersection (freeVariables g) (outputs g) == Set.empty
-
-prop_coverIsComplete :: Xag.Graph -> Property
-prop_coverIsComplete g = forAll gen prop
-  where
-    Xag.Graph nodes = g
-    gen = oneof (map (return . Xag.nodeId) nodes)
-    prop someId =
-      let cov = Xag.cover (Set.fromList [someId]) g
-       in Set.intersection (freeVariables cov) (outputs g) == Set.empty
-
-prop_coverIsMinimal :: Xag.Graph -> Property
-prop_coverIsMinimal (Xag.Graph []) = property True
-prop_coverIsMinimal g@(Xag.Graph nodes) = forAll gen prop
-  where
-    gen = oneof (map (return . Xag.nodeId) nodes)
-    prop someId =
-      let cov@(Xag.Graph covNodes) = Xag.cover (Set.fromList [someId]) g
-       in Set.difference
-            (outputs cov)
-            -- This fold finds all the refs in the (cover) graph
-            (foldl Set.union Set.empty (map Xag.nodeRefs covNodes))
-            -- The only output left after accounting for internal refs should
-            --  be the one that initiated the cover
-            == Set.fromList [someId]
-
--- Set.intersection (freeVariables g) (outputs g) == Set.empty
-
--- xag <- generate (arbitrary :: Gen Xag.Graph)
+-- xag <- generate (arbitrary :: Gen Graph)
 -- print xag
--- testGraph :: Xag.Graph
+-- testGraph :: Graph
 -- testGraph =
 --   Graph
 --     [ Const 0 True,
@@ -88,9 +58,45 @@ prop_coverIsMinimal g@(Xag.Graph nodes) = forAll gen prop
 --       Xor 33 [5, 0, 24, 20, 10],
 --       And 34 [1, 1]
 --     ]
--- print (Xag.cover (Set.fromList [13]) testGraph)
--- print (Xag.cover (Set.fromList [33]) testGraph)
--- print (Xag.cover (Set.fromList [34]) testGraph)
+-- print (Xag.cover (IntSet.fromList [13]) testGraph)
+-- print (Xag.cover (IntSet.fromList [33]) testGraph)
+-- print (Xag.cover (IntSet.fromList [34]) testGraph)
+-- print $ normalize (Graph [Const 0 True, Xor 2 (IntSet.fromList [0, 1])])
+-- print (Xag.cover (IntSet.fromList [0]) (Graph [Const 0 True]))
+
+prop_valid :: Graph -> Bool
+prop_valid = valid
+
+prop_freeVarsNotInOutputs :: Graph -> Bool
+prop_freeVarsNotInOutputs g =
+  IntSet.intersection (freeVariables g) (outputs g) == IntSet.empty
+
+prop_coverIsComplete :: Graph -> Property
+prop_coverIsComplete g = forAll gen prop
+  where
+    Graph nodes = g
+    gen = oneof (map (return . nodeId) nodes)
+    prop someId =
+      let cov = Xag.cover (IntSet.fromList [someId]) g
+       in IntSet.intersection (freeVariables cov) (outputs g) == IntSet.empty
+
+prop_coverIsMinimal :: Graph -> Property
+prop_coverIsMinimal (Graph []) = property True
+prop_coverIsMinimal g@(Graph nodes) = forAll gen prop
+  where
+    gen = oneof (map (return . nodeId) nodes)
+    prop someId =
+      let cov@(Graph covNodes) = Xag.cover (IntSet.fromList [someId]) g
+       in IntSet.difference
+            (outputs cov)
+            -- This fold finds all the refs in the (Xag.cover) graph
+            (foldr IntSet.union IntSet.empty (map nodeRefs covNodes))
+            -- The only output left after accounting for internal refs should
+            --  be the one that initiated the Xag.cover
+            == IntSet.fromList [someId]
+
+prop_normalizePreservesFreeVariables :: Graph -> Bool
+prop_normalizePreservesFreeVariables g = freeVariables g == freeVariables (normalize g)
 
 main :: IO ()
 main = do
@@ -98,4 +104,5 @@ main = do
   quickCheck prop_freeVarsNotInOutputs
   quickCheck prop_coverIsComplete
   quickCheck prop_coverIsMinimal
-  print (Xag.cover (Set.fromList [0]) (Graph [Const 0 True]))
+  quickCheck prop_normalizePreservesFreeVariables
+  print dowork
