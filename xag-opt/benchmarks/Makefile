@@ -7,7 +7,7 @@ XAGS=$(patsubst %,processed/%-xag.txt,$(BENCHMARKS))
 processed/%.mlut: original/%.aig
 	abc -c "&r $<; &st; $(CMDS) $(CMDS) $(CMDS) $(CMDS) &w -l $@"
 
-%-xag.txt: %.mlut mlut2xag
+%-xag.txt: %.mlut mlut2xag.py
 	python3 mlut2xag.py $< > $@
 
 mluts: $(MLUTS)

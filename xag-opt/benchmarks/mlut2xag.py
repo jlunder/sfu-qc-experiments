@@ -130,8 +130,11 @@ def compute(
     for i, g in zip([False, True] + input, input_gates):
         g.memo_result = i
     output: list[bool] = []
+    rlim = sys.getrecursionlimit()
+    sys.setrecursionlimit(len(gates))
     for g in output_gates:
         output.append(g.compute())
+    sys.setrecursionlimit(rlim)
 
     return output
 
@@ -168,14 +171,23 @@ def test_adder(
 def make_test_vectors(
     gates: list[Gate], input_gates: list[Gate], output_gates: list[Gate], count: int
 ) -> Iterator[tuple[list[bool], list[bool]]]:
-    bias_choices = [[0, 1], [0, 1], [0, 0, 1], [1, 1, 0], [0, 0, 0, 1], [1, 1, 1, 0]]
+    bias_choices = [
+        [0, 1],
+        [0, 0, 1],
+        [0, 1],
+        [0, 1, 1],
+        [0, 1],
+        [0, 0, 0, 1],
+        [0, 1],
+        [0, 1, 1, 1],
+    ]
     for i in range(count):
         input = [
-            random.choice(bias_choices[i % len(bias_choices)]) for _ in input_gates
+            bool(random.choice(bias_choices[i % len(bias_choices)]))
+            for _ in input_gates[2:]
         ]
         output = compute(gates, input_gates, output_gates, input)
         yield (input, output)
-
 
 
 def gen_xag(
@@ -326,16 +338,15 @@ if __name__ == "__main__":
 
         gates, input_gates, output_gates = read_mlut(f, "-- ")
         xag_strs, output_order = gen_xag(gates, input_gates, output_gates)
-        xag_array_str = "\n      , ".join(xag_strs)
-        test_vectors = make_test_vectors(gates, input_gates, output_gates, 100)
+        xag_array_str = "\n  , ".join(xag_strs)
+        test_vectors = list(make_test_vectors(gates, input_gates, output_gates, 100))
 
-        print(f"xag = [ {xag_array_str}\n]")
+        print(f"xag =\n  [ {xag_array_str}\n  ]")
         print()
-        print(f"input_order = [ 2 .. {len(input_gates) - 1} ]")
+        print(f"inputOrder = [ 2 .. {len(input_gates) - 1} ]")
         print()
         output_order_str = ", ".join((str(g.input_ids[0]) for g in output_gates))
-        print(f"output_order = [ {output_order_str} ]")
+        print(f"outputOrder = [ {output_order_str} ]")
         print()
-        print("test_vectors = []")
-
-
+        test_vectors_str = "\n  , ".join((f"({inp}, {outp})" for inp, outp in test_vectors))
+        print(f"testVectors =\n  [ {test_vectors_str}\n  ]")
