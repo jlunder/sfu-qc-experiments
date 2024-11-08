@@ -2,8 +2,7 @@ module Xag.Benchmarks where
 
 import Xag.Graph
 
-data BenchmarkInput
-  = BenchmarkInput {xag :: Graph, inputOrder :: [Int], outputOrder :: [Int], testVectors :: [([Bool], [Bool])]}
+data BenchmarkInput = BenchmarkInput {xag :: Graph, testVectors :: [([Bool], [Bool])]}
   deriving (Read, Show)
 
 readBenchmarkInput :: FilePath -> IO BenchmarkInput

@@ -487,17 +487,19 @@ if __name__ == "__main__":
         xag_nodes, output_order, gen_index = gen_xag(gates, input_gates, output_gates)
         print("  { xag =")
         print("      Graph")
-        xag_array_str = ",\n          ".join((n.xagb() for n in xag_nodes))
-        print(f"        [ {xag_array_str}\n        ],")
+        print("        { xagNodes =")
+        xag_array_str = ",\n              ".join((n.xagb() for n in xag_nodes))
+        print(f"            [ {xag_array_str}\n            ],")
         print()
 
         print(
-            f"    inputOrder = [ {', '.join(map(str, range(2, len(input_gates))))} ],"
+            f"          inputOrder = [ {', '.join(map(str, range(2, len(input_gates))))} ],"
         )
         print()
 
         output_order_str = ", ".join((str(i) for i in output_order))
-        print(f"    outputOrder = [ {output_order_str} ],")
+        print(f"          outputOrder = [ {output_order_str} ]")
+        print("        },")
         print()
 
         test_vectors = list(
