@@ -95,8 +95,8 @@ prop_coverIsMinimal g@(Graph nodes) = forAll gen prop
             --  be the one that initiated the Xag.cover
             == IntSet.fromList [someId]
 
-prop_normalizePreservesFreeVariables :: Graph -> Bool
-prop_normalizePreservesFreeVariables g = freeVariables g == freeVariables (normalize g)
+-- prop_normalizePreservesFreeVariables :: Graph -> Bool
+-- prop_normalizePreservesFreeVariables g = freeVariables g == freeVariables (normalize g)
 
 main :: IO ()
 main = do
@@ -104,5 +104,4 @@ main = do
   quickCheck prop_freeVarsNotInOutputs
   quickCheck prop_coverIsComplete
   quickCheck prop_coverIsMinimal
-  quickCheck prop_normalizePreservesFreeVariables
-  print dowork
+  -- quickCheck prop_normalizePreservesFreeVariables

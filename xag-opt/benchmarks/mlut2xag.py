@@ -1,5 +1,6 @@
 import struct
 from dataclasses import dataclass, field
+import itertools
 import os
 import random
 import sys
@@ -169,8 +170,23 @@ def test_adder(
 
 
 def make_test_vectors(
-    gates: list[Gate], input_gates: list[Gate], output_gates: list[Gate], count: int
+    gates: list[Gate],
+    input_gates: list[Gate],
+    output_gates: list[Gate],
+    count: int,
+    seed: any = None,
 ) -> Iterator[tuple[list[bool], list[bool]]]:
+
+    if seed is None:
+        seed = bytes(
+            (
+                (x & 0xFFFFFFFF) % 255
+                for x in itertools.chain(*(g.input_ids for g in gates))
+            )
+        )
+
+    r = random.Random(seed)
+
     bias_choices = [
         [0, 1],
         [0, 0, 1],
@@ -183,8 +199,7 @@ def make_test_vectors(
     ]
     for i in range(count):
         input = [
-            bool(random.choice(bias_choices[i % len(bias_choices)]))
-            for _ in input_gates[2:]
+            bool(r.choice(bias_choices[i % len(bias_choices)])) for _ in input_gates[2:]
         ]
         output = compute(gates, input_gates, output_gates, input)
         yield (input, output)
@@ -339,9 +354,10 @@ if __name__ == "__main__":
         gates, input_gates, output_gates = read_mlut(f, "-- ")
         xag_strs, output_order = gen_xag(gates, input_gates, output_gates)
         print("xag :: Graph")
-        print("xag = Graph")
-        xag_array_str = "\n  , ".join(xag_strs)
-        print(f"  [ {xag_array_str}\n  ]")
+        print("xag =")
+        print("  Graph")
+        xag_array_str = ",\n      ".join(xag_strs)
+        print(f"    [ {xag_array_str}\n    ]")
         print()
 
         print("inputOrder :: [Int]")
@@ -354,6 +370,10 @@ if __name__ == "__main__":
         print()
 
         print("testVectors :: [([Bool], [Bool])]")
-        test_vectors = list(make_test_vectors(gates, input_gates, output_gates, 100))
-        test_vectors_str = "\n  , ".join((f"({inp}, {outp})" for inp, outp in test_vectors))
+        test_vectors = list(
+            make_test_vectors(gates, input_gates, output_gates, 100, id_str)
+        )
+        test_vectors_str = ",\n    ".join(
+            (f"({inp}, {outp})" for inp, outp in test_vectors)
+        )
         print(f"testVectors =\n  [ {test_vectors_str}\n  ]")
