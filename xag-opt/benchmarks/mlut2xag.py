@@ -1,11 +1,19 @@
 import struct
 from dataclasses import dataclass, field
 import itertools
+import logging
 import os
 import random
 import sys
 import time
 from typing import Iterator
+
+
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+handler = logging.StreamHandler()
+handler.setFormatter(logging.Formatter("%(message)s"))
+logger.addHandler(handler)
 
 
 @dataclass
@@ -56,7 +64,7 @@ def unpack_bits(x: int, bit_width: int) -> list[bool]:
     return [(x & (1 << i)) != 0 for i in range(bit_width)]
 
 
-def read_mlut(path: str, prefix: str) -> tuple[list[Gate], list[Gate], list[Gate]]:
+def read_mlut(path: str) -> tuple[list[Gate], list[Gate], list[Gate]]:
     f = open(path, "rb")
 
     size, regs, lut_size = struct.unpack("<iii", f.read(12))
@@ -75,7 +83,7 @@ def read_mlut(path: str, prefix: str) -> tuple[list[Gate], list[Gate], list[Gate
         for ins in lut_array
     ]
 
-    print(f"{prefix}read '{path}': size={size}, regs={regs}, lut_size={lut_size}")
+    logger.info(f"read '{path}': size={size}, regs={regs}, lut_size={lut_size}")
     # for i, (ins, (l,)) in enumerate(zip(lut_array, lut_truths)):
     #     ins_str = ", ".join((f"{i:4}" for i in ins))
     #     print(f"  [{i:4}, {ins_str}, {[int(i) for i in unpack_bits(l, 1 << (len(ins)))]}],")
@@ -109,10 +117,9 @@ def read_mlut(path: str, prefix: str) -> tuple[list[Gate], list[Gate], list[Gate
                     print(f"out of range: {i} on gate {n}")
             g.inputs = [gates[i] for i in g.input_ids]
 
-    print(
-        f"{prefix}  interpreted {len(gates)} gates: {len(input_gates)} inputs, {len(output_gates)} outputs"
+    logger.info(
+        f"interpreted {len(gates)} gates: {len(input_gates)} inputs, {len(output_gates)} outputs"
     )
-    print()
 
     return gates, input_gates, output_gates
 
@@ -242,57 +249,72 @@ def gen_xag(
         # 0 0 1 1 (y)
         # -------
         # 0 0 0 0
-        lambda x, y, n: [f"Const {n+0} False"],  # PATHOLOGICAL
+        lambda x, y, n: [f"Const {{nodeId = {n+0}, value = False}}"],  # PATHOLOGICAL
         # 1 0 0 0
         lambda x, y, n: [
-            f"Not {n+0} {x}",
-            f"Not {n+1} {y}",
-            f"And {n+2} {n+0} {n+1}",
+            f"Not {{nodeId = {n+0}, xIn = {x}}}",
+            f"Not {{nodeId = {n+1}, xIn = {y}}}",
+            f"And {{nodeId = {n+2}, xIn = {n+0}, yIn = {n+1}}}",
         ],
         # 0 1 0 0
-        lambda x, y, n: [f"Not {n+0} {x}", f"And {n+1} {n+0} {y}"],
+        lambda x, y, n: [
+            f"Not {{nodeId = {n+0}, xIn = {x}}}",
+            f"And {{nodeId = {n+1}, xIn = {n+0}, yIn = {y}}}",
+        ],
         # 1 1 0 0
-        lambda x, y, n: [f"Not {n+0} {y}"],  # PATHOLOGICAL
+        lambda x, y, n: [f"Not {{nodeId = {n+0}, xIn = {y}}}"],  # PATHOLOGICAL
         # 0 0 1 0
-        lambda x, y, n: [f"Not {n+0} {y}", f"And {n+1} {x} {n+0}"],
+        lambda x, y, n: [
+            f"Not {{nodeId = {n+0}, xIn = {y}}}",
+            f"And {{nodeId = {n+1}, xIn = {x}, yIn = {n+0}}}",
+        ],
         # 1 0 1 0
-        lambda x, y, n: [f"Not {n+0} {x}"],  # PATHOLOGICAL
+        lambda x, y, n: [f"Not {{nodeId = {n+0}, xIn = {x}}}"],  # PATHOLOGICAL
         # 0 1 1 0
-        lambda x, y, n: [f"Xor {n+0} {x} {y}"],
+        lambda x, y, n: [f"Xor {{nodeId = {n+0}, xIn = {x}, yIn = {y}}}"],
         # 1 1 1 0
         lambda x, y, n: [
-            f"And {n+0} {x} {y}",
-            f"Not {n+1} {n+0}]",
+            f"And {{nodeId = {n+0}, xIn = {x}, yIn = {y}}}",
+            f"Not {{nodeId = {n+1}, xIn = {n+0}}}",
         ],
         # 0 0 0 1
-        lambda x, y, n: [f"And {n+0} {x} {y}"],
+        lambda x, y, n: [f"And {{nodeId = {n+0}, xIn = {x}, yIn = {y}}}"],
         # 1 0 0 1
-        lambda x, y, n: [f"Not {n+0} {x}", f"Xor {n+1} {n+0} {y}"],
+        lambda x, y, n: [
+            f"Not {{nodeId = {n+0}, xIn = {x}}}",
+            f"Xor {{nodeId = {n+1}, xIn = {n+0}, yIn = {y}}}",
+        ],
         # 0 1 0 1
-        lambda x, y, n: [f"Not {n+0} {x}", f"Not {n+1} {n+0}"],  # PATHOLOGICAL
+        lambda x, y, n: [
+            f"Not {{nodeId = {n+0}, xIn = {x}}}",
+            f"Not {{nodeId = {n+1}, xIn = {n+0}}}",
+        ],  # PATHOLOGICAL
         # 1 1 0 1
         lambda x, y, n: [
-            f"Not {n+0} {y}",
-            f"And {n+1} {x} {n+0}",
-            f"Not {n+2} {n+1}",
+            f"Not {{nodeId = {n+0}, xIn = {y}}}",
+            f"And {{nodeId = {n+1}, xIn = {x}, yIn = {n+0}}}",
+            f"Not {{nodeId = {n+2}, xIn = {n+1}}}",
         ],
         # 0 0 1 1
-        lambda x, y, n: [f"Not {n+0} {y}", f"Not {n+1} {n+0}"],  # PATHOLOGICAL
+        lambda x, y, n: [
+            f"Not {{nodeId = {n+0}, xIn = {y}}}",
+            f"Not {{nodeId = {n+1}, xIn = {n+0}}}",
+        ],  # PATHOLOGICAL
         # 1 0 1 1
         lambda x, y, n: [
-            f"Not {n+0} {x}",
-            f"And {n+1} {n+0} {y}",
-            f"Not {n+2} {n+1}",
+            f"Not {{nodeId = {n+0}, xIn = {x}}}",
+            f"And {{nodeId = {n+1}, xIn = {n+0}, yIn = {y}}}",
+            f"Not {{nodeId = {n+2}, xIn = {n+1}}}",
         ],
         # 0 1 1 1
         lambda x, y, n: [
-            f"Not {n+0} {x}",
-            f"Not {n+1} {y}",
-            f"And {n+2} {n+0} {n+1}",
-            f"Not {n+3} {n+2}",
+            f"Not {{nodeId = {n+0}, xIn = {x}}}",
+            f"Not {{nodeId = {n+1}, xIn = {y}}}",
+            f"And {{nodeId = {n+2}, xIn = {n+0}, yIn = {n+1}}}",
+            f"Not {{nodeId = {n+3}, xIn = {n+2}}}",
         ],
         # 1 1 1 1
-        lambda x, y, n: [f"Const {n+0} True"],  # PATHOLOGICAL
+        lambda x, y, n: [f"Const {{nodeId = {n+0}, value = True}}"],  # PATHOLOGICAL
     ]
 
     lut_questionable = [
@@ -318,7 +340,7 @@ def gen_xag(
     ]
 
     gen_index = {i: i for i in range(len(input_gates))}
-    xag_strs = ["Const 0 False", "Const 1 True"]
+    xag_strs = ["Const {nodeId = 0, value = False}", "Const {nodeId = 1, value = True}"]
     n = len(input_gates)
     for i, g in enumerate(gates[len(input_gates) : -len(output_gates)]):
         assert len(g.input_ids) == 2
@@ -340,40 +362,39 @@ def gen_xag(
 
 if __name__ == "__main__":
     for f in sys.argv[1:]:
-        id_str = (
-            os.path.splitext(os.path.basename(f))[0]
-            .translate({c: (c if chr(c).isalnum else " ") for c in range(0, 128)})
-            .title()
-            .translate({ord(" "): None})
-        )
-        print(f"module Xag.Benchmarks.{id_str} where")
-        print()
-        print("import Xag.Graph")
-        print()
+        id_str = os.path.splitext(os.path.basename(f))[0]
+        # id_str = (
+        #     os.path.splitext(os.path.basename(f))[0]
+        #     .translate({c: (c if chr(c).isalnum else " ") for c in range(0, 128)})
+        #     .title()
+        #     .translate({ord(" "): None})
+        # )
+        # print(f"module Xag.Benchmarks.{id_str} where")
+        # print()
+        # print("import Xag.Graph")
+        # print()
 
-        gates, input_gates, output_gates = read_mlut(f, "-- ")
+        print("BenchmarkInput")
+        gates, input_gates, output_gates = read_mlut(f)
         xag_strs, output_order = gen_xag(gates, input_gates, output_gates)
-        print("xag :: Graph")
-        print("xag =")
-        print("  Graph")
-        xag_array_str = ",\n      ".join(xag_strs)
-        print(f"    [ {xag_array_str}\n    ]")
+        print("  { xag =")
+        print("      Graph")
+        xag_array_str = ",\n          ".join(xag_strs)
+        print(f"        [ {xag_array_str}\n        ],")
         print()
 
-        print("inputOrder :: [Int]")
-        print(f"inputOrder = [ 2 .. {len(input_gates) - 1} ]")
+        print(f"    inputOrder = [ {', '.join(map(str, range(2, len(input_gates))))} ],")
         print()
 
         output_order_str = ", ".join((str(g.input_ids[0]) for g in output_gates))
-        print("outputOrder :: [Int]")
-        print(f"outputOrder = [ {output_order_str} ]")
+        print(f"    outputOrder = [ {output_order_str} ],")
         print()
 
-        print("testVectors :: [([Bool], [Bool])]")
         test_vectors = list(
             make_test_vectors(gates, input_gates, output_gates, 100, id_str)
         )
-        test_vectors_str = ",\n    ".join(
+        test_vectors_str = ",\n        ".join(
             (f"({inp}, {outp})" for inp, outp in test_vectors)
         )
-        print(f"testVectors =\n  [ {test_vectors_str}\n  ]")
+        print(f"    testVectors =\n      [ {test_vectors_str}\n      ]")
+        print("  }")

@@ -61,6 +61,7 @@ library
   -- Modules exported by the library.
   exposed-modules:
     Xag.AffineEquivalence
+    Xag.Benchmarks
     Xag.Graph
     Xag.Optimize
 
@@ -118,16 +119,6 @@ test-suite xag-opt-test
 
   -- Modules included in this executable, other than Main.
   other-modules:
-    Xag.Benchmarks.Adder
-    Xag.Benchmarks.Bar
-    Xag.Benchmarks.Div
-    Xag.Benchmarks.Hyp
-    Xag.Benchmarks.Log2
-    Xag.Benchmarks.Max
-    Xag.Benchmarks.Multiplier
-    Xag.Benchmarks.Sin
-    Xag.Benchmarks.Sqrt
-    Xag.Benchmarks.Square
 
   -- LANGUAGE extensions used by modules in this package.
   -- other-extensions:

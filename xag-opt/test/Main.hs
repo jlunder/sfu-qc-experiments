@@ -2,6 +2,7 @@ module Main (main) where
 
 import qualified Data.IntSet as IntSet
 import Test.QuickCheck
+import Xag.Benchmarks
 import Xag.Graph as Xag
 import Xag.Optimize
 
@@ -105,3 +106,6 @@ main = do
   quickCheck prop_coverIsComplete
   quickCheck prop_coverIsMinimal
   -- quickCheck prop_normalizePreservesFreeVariables
+  adder <- Xag.Benchmarks.adder
+  let Graph nodes = xag adder
+  print (length nodes)
