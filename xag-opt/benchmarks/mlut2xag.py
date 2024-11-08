@@ -230,51 +230,51 @@ def gen_xag(
         lambda x, y, n: [f"Const {n+0} False"],  # PATHOLOGICAL
         # 1 0 0 0
         lambda x, y, n: [
-            f"Not {n+0} [{x}]",
-            f"Not {n+1} [{y}]",
-            f"And {n+2} [{n+0}, {n+1}]",
+            f"Not {n+0} {x}",
+            f"Not {n+1} {y}",
+            f"And {n+2} {n+0} {n+1}",
         ],
         # 0 1 0 0
-        lambda x, y, n: [f"Not {n+0} [{x}]", f"And {n+1} [{n+0}, {y}]"],
+        lambda x, y, n: [f"Not {n+0} {x}", f"And {n+1} {n+0} {y}"],
         # 1 1 0 0
-        lambda x, y, n: [f"Not {n+0} [{y}]"],  # PATHOLOGICAL
+        lambda x, y, n: [f"Not {n+0} {y}"],  # PATHOLOGICAL
         # 0 0 1 0
-        lambda x, y, n: [f"Not {n+0} [{y}]", f"And {n+1} [{x}, {n+0}]"],
+        lambda x, y, n: [f"Not {n+0} {y}", f"And {n+1} {x} {n+0}"],
         # 1 0 1 0
-        lambda x, y, n: [f"Not {n+0} [{x}]"],  # PATHOLOGICAL
+        lambda x, y, n: [f"Not {n+0} {x}"],  # PATHOLOGICAL
         # 0 1 1 0
-        lambda x, y, n: [f"Xor {n+0} [{x}, {y}]"],
+        lambda x, y, n: [f"Xor {n+0} {x} {y}"],
         # 1 1 1 0
         lambda x, y, n: [
-            f"And {n+0} [{x}, {y}]",
-            f"Not {n+1} [{n+0}]",
+            f"And {n+0} {x} {y}",
+            f"Not {n+1} {n+0}]",
         ],
         # 0 0 0 1
-        lambda x, y, n: [f"And {n+0} [{x}, {y}]"],
+        lambda x, y, n: [f"And {n+0} {x} {y}"],
         # 1 0 0 1
-        lambda x, y, n: [f"Not {n+0} [{x}]", f"Xor {n+1} [{n+0}, {y}]"],
+        lambda x, y, n: [f"Not {n+0} {x}", f"Xor {n+1} {n+0} {y}"],
         # 0 1 0 1
-        lambda x, y, n: [f"Not {n+0} [{x}]", f"Not {n+1} [{n+0}]"],  # PATHOLOGICAL
+        lambda x, y, n: [f"Not {n+0} {x}", f"Not {n+1} {n+0}"],  # PATHOLOGICAL
         # 1 1 0 1
         lambda x, y, n: [
-            f"Not {n+0} [{y}]",
-            f"And {n+1} [{x}, {n+0}]",
-            f"Not {n+2} [{n+1}]",
+            f"Not {n+0} {y}",
+            f"And {n+1} {x} {n+0}",
+            f"Not {n+2} {n+1}",
         ],
         # 0 0 1 1
-        lambda x, y, n: [f"Not {n+0} [{y}]", f"Not {n+1} [{n+0}]"],  # PATHOLOGICAL
+        lambda x, y, n: [f"Not {n+0} {y}", f"Not {n+1} {n+0}"],  # PATHOLOGICAL
         # 1 0 1 1
         lambda x, y, n: [
-            f"Not {n+0} [{x}]",
-            f"And {n+1} [{n+0}, {y}]",
-            f"Not {n+2} [{n+1}]",
+            f"Not {n+0} {x}",
+            f"And {n+1} {n+0} {y}",
+            f"Not {n+2} {n+1}",
         ],
         # 0 1 1 1
         lambda x, y, n: [
-            f"Not {n+0} [{x}]",
-            f"Not {n+1} [{y}]",
-            f"And {n+2} [{n+0}, {n+1}]",
-            f"Not {n+3} [{n+2}]",
+            f"Not {n+0} {x}",
+            f"Not {n+1} {y}",
+            f"And {n+2} {n+0} {n+1}",
+            f"Not {n+3} {n+2}",
         ],
         # 1 1 1 1
         lambda x, y, n: [f"Const {n+0} True"],  # PATHOLOGICAL
@@ -338,15 +338,22 @@ if __name__ == "__main__":
 
         gates, input_gates, output_gates = read_mlut(f, "-- ")
         xag_strs, output_order = gen_xag(gates, input_gates, output_gates)
+        print("xag :: Graph")
+        print("xag = Graph")
         xag_array_str = "\n  , ".join(xag_strs)
-        test_vectors = list(make_test_vectors(gates, input_gates, output_gates, 100))
-
-        print(f"xag =\n  [ {xag_array_str}\n  ]")
+        print(f"  [ {xag_array_str}\n  ]")
         print()
+
+        print("inputOrder :: [Int]")
         print(f"inputOrder = [ 2 .. {len(input_gates) - 1} ]")
         print()
+
         output_order_str = ", ".join((str(g.input_ids[0]) for g in output_gates))
+        print("outputOrder :: [Int]")
         print(f"outputOrder = [ {output_order_str} ]")
         print()
+
+        print("testVectors :: [([Bool], [Bool])]")
+        test_vectors = list(make_test_vectors(gates, input_gates, output_gates, 100))
         test_vectors_str = "\n  , ".join((f"({inp}, {outp})" for inp, outp in test_vectors))
         print(f"testVectors =\n  [ {test_vectors_str}\n  ]")

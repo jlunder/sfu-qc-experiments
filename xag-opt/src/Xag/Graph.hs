@@ -7,7 +7,7 @@ module Xag.Graph
     cover,
     freeVariables,
     nodeRefs,
-    normalize,
+    -- normalize,
     outputs,
     valid,
   )
@@ -29,8 +29,9 @@ import qualified Test.QuickCheck as QC
 
 data Node
   = Const {nodeId :: !Int, value :: !Bool}
-  | Xor {nodeId :: !Int, inputs :: !IntSet.IntSet}
-  | And {nodeId :: !Int, inputs :: !IntSet.IntSet}
+  | Not {nodeId :: !Int, xIn :: !Int}
+  | Xor {nodeId :: !Int, xIn :: !Int, yIn :: !Int}
+  | And {nodeId :: !Int, xIn :: !Int, yIn :: !Int}
   deriving (Eq, Generic, Ord, Read, Show)
 
 newtype Graph = Graph [Node] deriving (Eq, Generic, Ord, Read, Show)
@@ -66,100 +67,101 @@ cover initialIds (Graph allNodes) = Graph $ reverse (coverRev initialIds (revers
         else coverRev coverIds nodes
 
 nodeRefs :: Node -> IntSet.IntSet
-nodeRefs (Xor _ rs) = rs
-nodeRefs (And _ rs) = rs
+nodeRefs (Not _ x) = IntSet.singleton x
+nodeRefs (Xor _ x y) = IntSet.fromList [x, y]
+nodeRefs (And _ x y) = IntSet.fromList [x, y]
 nodeRefs _ = IntSet.empty
 
 -- Do the most trivial operations required to reduce the complexity of an XAG
-normalize :: Graph -> Graph
-normalize (Graph allNodes) =
-  case firstTrueConst allNodes of
-    Nothing -> Graph $ filterNodes IntSet.empty allNodes
-      where
-        -- If no constant true is present in the graph, there must also not be
-        -- any trivial true outputs. This arises because you can't get a true
-        -- output from an XOR or AND gate without a true input, therefore any
-        -- true outputs must be nontrivial. This is a convenient fact for us
-        -- in that the constant will always be there if we need it, but then
-        -- we still need to special-case the reduction when that happens.
-        filterNodes :: IntSet.IntSet -> [Node] -> [Node]
-        filterNodes _ [] = []
-        -- Add constant false to the trivial set
-        filterNodes trivialFalse (Const nid False : nodes) =
-          filterNodes (IntSet.insert nid trivialFalse) nodes
-        filterNodes _ (Const _ True : _) = undefined
-        -- Xor:
-        -- Remove trivial false inputs;
-        -- Remove inputs that appear an even number of times;
-        -- Remap trivial true inputs to the first constant true found.
-        filterNodes trivialFalse (Xor nid xorInputs : nodes) =
-          Xor nid gatheredInputs : filterNodes trivialFalse nodes
-          where
-            gatheredInputs = IntSet.foldr xorGather IntSet.empty xorInputs
+-- normalize :: Graph -> Graph
+-- normalize (Graph allNodes) =
+--   case firstTrueConst allNodes of
+--     Nothing -> Graph $ filterNodes IntSet.empty allNodes
+--       where
+--         -- If no constant true is present in the graph, there must also not be
+--         -- any trivial true outputs. This arises because you can't get a true
+--         -- output from an XOR or AND gate without a true input, therefore any
+--         -- true outputs must be nontrivial. This is a convenient fact for us
+--         -- in that the constant will always be there if we need it, but then
+--         -- we still need to special-case the reduction when that happens.
+--         filterNodes :: IntSet.IntSet -> [Node] -> [Node]
+--         filterNodes _ [] = []
+--         -- Add constant false to the trivial set
+--         filterNodes trivialFalse (Const nid False : nodes) =
+--           filterNodes (IntSet.insert nid trivialFalse) nodes
+--         filterNodes _ (Const _ True : _) = undefined
+--         -- Xor:
+--         -- Remove trivial false inputs;
+--         -- Remove inputs that appear an even number of times;
+--         -- Remap trivial true inputs to the first constant true found.
+--         filterNodes trivialFalse (Xor nid x y : nodes) =
+--           Xor nid gatheredInputs : filterNodes trivialFalse nodes
+--           where
+--             gatheredInputs = IntSet.foldr xorGather IntSet.empty (IntSet.fromList [x, y])
 
-            xorGather inp gathered
-              -- Ignore trivial false inputs
-              | IntSet.member inp trivialFalse = gathered
-              -- Track whether inputs have canceled themselves out
-              | otherwise = invertMembership inp gathered
+--             xorGather inp gathered
+--               -- Ignore trivial false inputs
+--               | IntSet.member inp trivialFalse = gathered
+--               -- Track whether inputs have canceled themselves out
+--               | otherwise = invertMembership inp gathered
 
-            invertMembership n s
-              | IntSet.member n s = IntSet.delete n s
-              | otherwise = IntSet.insert n s
+--             invertMembership n s
+--               | IntSet.member n s = IntSet.delete n s
+--               | otherwise = IntSet.insert n s
 
-        -- And:
-        -- If any input is trivial false, add this to the trivial false set;
-        -- Otherwise include it with repeated inputs removed.
-        filterNodes trivialFalse (And nid andInputs : nodes) =
-          if not (IntSet.disjoint trivialFalse andInputs)
-            then filterNodes (IntSet.insert nid trivialFalse) nodes
-            else And nid andInputs : filterNodes trivialFalse nodes
-    Just trueId -> Graph $ Const trueId True : filterNodes IntSet.empty IntSet.empty allNodes
-      where
-        filterNodes :: IntSet.IntSet -> IntSet.IntSet -> [Node] -> [Node]
-        filterNodes _ _ [] = []
-        -- Add constant true/false to the trivial set
-        filterNodes trivialFalse trivialTrue (Const nid False : nodes) =
-          filterNodes (IntSet.insert nid trivialFalse) trivialTrue nodes
-        filterNodes trivialFalse trivialTrue (Const nid True : nodes) =
-          filterNodes trivialFalse (IntSet.insert nid trivialTrue) nodes
-        -- Xor:
-        -- Remove trivial false inputs;
-        -- Remove inputs that appear an even number of times;
-        -- Remap trivial true inputs to the first constant true found.
-        filterNodes trivialFalse trivialTrue (Xor nid xorInputs : nodes) =
-          Xor nid gatheredInputs : filterNodes trivialFalse trivialTrue nodes
-          where
-            gatheredInputs = IntSet.foldr xorGather IntSet.empty xorInputs
+--         -- And:
+--         -- If any input is trivial false, add this to the trivial false set;
+--         -- Otherwise include it with repeated inputs removed.
+--         filterNodes trivialFalse (And nid andInputs : nodes) =
+--           if not (IntSet.disjoint trivialFalse andInputs)
+--             then filterNodes (IntSet.insert nid trivialFalse) nodes
+--             else And nid andInputs : filterNodes trivialFalse nodes
+--     Just trueId -> Graph $ Const trueId True : filterNodes IntSet.empty IntSet.empty allNodes
+--       where
+--         filterNodes :: IntSet.IntSet -> IntSet.IntSet -> [Node] -> [Node]
+--         filterNodes _ _ [] = []
+--         -- Add constant true/false to the trivial set
+--         filterNodes trivialFalse trivialTrue (Const nid False : nodes) =
+--           filterNodes (IntSet.insert nid trivialFalse) trivialTrue nodes
+--         filterNodes trivialFalse trivialTrue (Const nid True : nodes) =
+--           filterNodes trivialFalse (IntSet.insert nid trivialTrue) nodes
+--         -- Xor:
+--         -- Remove trivial false inputs;
+--         -- Remove inputs that appear an even number of times;
+--         -- Remap trivial true inputs to the first constant true found.
+--         filterNodes trivialFalse trivialTrue (Xor nid x y : nodes) =
+--           Xor nid gatheredInputs : filterNodes trivialFalse trivialTrue nodes
+--           where
+--             gatheredInputs = IntSet.foldr xorGather IntSet.empty (IntSet.fromList [x, y])
 
-            xorGather inp gathered
-              -- Ignore trivial false inputs
-              | IntSet.member inp trivialFalse = gathered
-              -- Map trivial true to the one true ID (canceling it out if needed)
-              | IntSet.member inp trivialTrue = invertMembership trueId gathered
-              | otherwise = IntSet.insert inp gathered
+--             xorGather inp gathered
+--               -- Ignore trivial false inputs
+--               | IntSet.member inp trivialFalse = gathered
+--               -- Map trivial true to the one true ID (canceling it out if needed)
+--               | IntSet.member inp trivialTrue = invertMembership trueId gathered
+--               | otherwise = IntSet.insert inp gathered
 
-            invertMembership n s
-              | IntSet.member n s = IntSet.delete n s
-              | otherwise = IntSet.insert n s
+--             invertMembership n s
+--               | IntSet.member n s = IntSet.delete n s
+--               | otherwise = IntSet.insert n s
 
-        -- And:
-        -- If any input is trivial false, add it to the trivial false set;
-        -- Remove any trivial true inputs;
-        --   If no inputs remain, add it to the trivial true set;
-        --   Otherwise include it with nontrivial inputs only.
-        filterNodes trivialFalse trivialTrue (And nid andInputs : nodes)
-          | not (IntSet.disjoint andInputs trivialFalse) =
-              filterNodes (IntSet.insert nid trivialFalse) trivialTrue nodes
-          | IntSet.isSubsetOf andInputs trivialTrue =
-              filterNodes (IntSet.insert nid trivialFalse) trivialTrue nodes
-          | otherwise =
-              And nid (IntSet.difference andInputs trivialTrue)
-                : filterNodes trivialFalse trivialTrue nodes
-  where
-    firstTrueConst [] = Nothing
-    firstTrueConst (Const nid True : _) = Just nid
-    firstTrueConst (_ : nodes) = firstTrueConst nodes
+--         -- And:
+--         -- If any input is trivial false, add it to the trivial false set;
+--         -- Remove any trivial true inputs;
+--         --   If no inputs remain, add it to the trivial true set;
+--         --   Otherwise include it with nontrivial inputs only.
+--         filterNodes trivialFalse trivialTrue (And nid x y : nodes)
+--           | not (IntSet.disjoint (IntSet.fromList [x, y]) trivialFalse) =
+--               filterNodes (IntSet.insert nid trivialFalse) trivialTrue nodes
+--           | IntSet.isSubsetOf (IntSet.fromList [x, y]) trivialTrue =
+--               filterNodes (IntSet.insert nid trivialFalse) trivialTrue nodes
+--           | otherwise =
+--               And nid (IntSet.difference (IntSet.fromList [x, y]) trivialTrue)
+--                 : filterNodes trivialFalse trivialTrue nodes
+--   where
+--     firstTrueConst [] = Nothing
+--     firstTrueConst (Const nid True : _) = Just nid
+--     firstTrueConst (_ : nodes) = firstTrueConst nodes
 
 -- checks properties of nodeId order and uniqueness, and acyclic refs
 valid :: Graph -> Bool
@@ -168,15 +170,14 @@ valid (Graph ns) = validNodes 0 ns
     validNodes _ [] = True
     validNodes nextId (node : nodes) =
       validNode nextId node && validNodes (nodeId node + 1) nodes
-    validNode nextId (Xor n inNs) = (n >= nextId) && inNs /= IntSet.empty && validInputs n inNs
-    validNode nextId (And n inNs) = (n >= nextId) && inNs /= IntSet.empty && validInputs n inNs
     validNode nextId (Const n _) = n >= nextId
+    validNode nextId (Not n x) = (n >= nextId) && validInput n x
+    validNode nextId (Xor n x y) = (n >= nextId) && validInput n x && validInput n y
+    validNode nextId (And n x y) = (n >= nextId) && validInput n x && validInput n y
     -- validNode nextId (Var n) = n >= nextId
 
-    validInputs :: Int -> IntSet.IntSet -> Bool
-    validInputs n inNs = all (>= 0) inNsList && all (< n) inNsList
-      where
-        inNsList = IntSet.toList inNs
+    validInput :: Int -> Int -> Bool
+    validInput n x = (x >= 0) && (x < n)
 
 -- eval :: Graph a -> (b -> b -> b) -> (b -> b -> b) -> (a -> b) -> b
 -- eval (Xor x y) xorF andF litF = xorF (eval x xorF andF litF) (eval y xorF andF litF)
@@ -190,52 +191,36 @@ valid (Graph ns) = validNodes 0 ns
 -- (And x y)1
 -- (Lit v)
 
--- The Arbitrary makes a valid, arbitrary Graph with (size permitting) one True
--- Const node, a gap for free variables, and then a number of Xor and And nodes
--- to fill the list to the arbitrary size. Inputs are weighted to prefer earlier
--- nodes, so as to make shallower graphs.
+-- The Arbitrary makes a valid, arbitrary Graph with a gap for free variables,
+-- and then a number of Not, Xor, and And nodes to fill the list to the
+-- arbitrary size. Inputs are weighted to prefer earlier nodes, so as to bias
+-- towards shallower graphs.
 instance QC.Arbitrary Graph where
   arbitrary :: QC.Gen Graph
   arbitrary = do
     nNodes <- QC.getSize
-    let constNodes = [Const 0 True | nNodes > 0]
-    let nVarNodes = length constNodes + (floor . sqrtFloat . fromIntegral) nNodes
-    let nXaNodes = nNodes + (nVarNodes - length constNodes)
-    -- varNodes <- mapM genVarNode [length constNodes .. nVarNodes - 1]
-    xaNodes <- mapM genXANode [nVarNodes .. nXaNodes - 1]
-    return $ Graph (constNodes {- ++ varNodes -} ++ xaNodes)
+    let nVars = (ceiling . sqrtFloat . fromIntegral) nNodes + 1
+    nodes <- mapM genNode [nVars .. nVars + nNodes - 1]
+    return $ Graph nodes
     where
-      -- genVarNode = return . Var
+      genNode n = do
+        QC.frequency [(1, genConstNode n), (10, genNotNode n), (20, genXANode n)]
+
+      genConstNode n = do
+        val <- QC.oneof [return True, return False]
+        return $ Const n val
+
+      genNotNode n = do
+        xInput <- genIndex n
+        return $ Not n xInput
+
       genXANode n = QC.oneof [genBinary n Xor, genBinary n And]
-
-      genBinary :: Int -> (Int -> IntSet.IntSet -> Node) -> QC.Gen Node
-      genBinary n xa = do
-        inputsCount <- QC.choose (2 :: Int, 5)
-        newInputs <- genInputs inputsCount [0 .. n - 1]
-        return $ xa n (IntSet.fromList newInputs)
-
-      genInputs 0 _ = return []
-      genInputs n [] = mapM (const $ QC.choose (0, 1)) [0 .. n - 1]
-      genInputs n list = QC.oneof [genConstInputs n list, genListInputs n list]
-
-      genConstInputs n list = do
-        k <- QC.choose (0, 1)
-        moreInputs <- genInputs (n - 1) list
-        return (k : moreInputs)
-
-      genListInputs _ [] = undefined
-      genListInputs n list = do
-        (input, listRemain) <- genTakeOneFromList list
-        moreInputs <- genInputs (n - 1) listRemain
-        return (input : moreInputs)
-
-      genTakeOneFromList [] = undefined
-      genTakeOneFromList list = do
-        index <- genIndex (length list)
-        let (hd, taken, tl) = case splitAt index list of
-              (h, x : t) -> (h, x, t)
-              _ -> undefined -- can't happen, but _you_ tell that to GHC
-        return (taken, hd ++ tl)
+        where
+          genBinary :: Int -> (Int -> Int -> Int -> Node) -> QC.Gen Node
+          genBinary n xa = do
+            xInput <- genIndex n
+            yInput <- genIndex n
+            return $ xa n xInput yInput
 
       genIndex 0 = undefined
       genIndex n = do
