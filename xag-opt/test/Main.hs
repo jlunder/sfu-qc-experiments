@@ -1,13 +1,17 @@
+{-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE ImportQualifiedPost #-}
+
 module Main (main) where
 
 import Data.Bits
-import qualified Data.IntMap as IntMap
-import qualified Data.IntSet as IntSet
+import Data.IntMap qualified as IntMap
+import Data.IntSet qualified as IntSet
 import Data.List (sort)
 import Debug.Trace (trace)
-import qualified Test.QuickCheck as QC
-import qualified Xag.Benchmarks
-import qualified Xag.Graph as Xag
+import System.IO
+import Test.QuickCheck qualified as QC
+import Xag.Benchmarks qualified
+import Xag.Graph qualified as Xag
 
 -- import Xag.Optimize
 
@@ -57,8 +61,8 @@ prop_coverIsMinimal g@(Xag.Graph nodes) = QC.forAll gen prop
             --  be the one that initiated the Xag.cover
             == IntSet.fromList [someId]
 
-eval :: Xag.Graph -> [Int] -> [Int] -> [Bool] -> Maybe [Bool]
-eval (Xag.Graph nodes) inOrd outOrd inVec
+eval :: Xag.Benchmarks.BenchmarkInput -> [Bool] -> Maybe [Bool]
+eval (Xag.Benchmarks.BenchmarkInput {Xag.Benchmarks.xag = Xag.Graph nodes, Xag.Benchmarks.inputOrder = inOrd, Xag.Benchmarks.outputOrder = outOrd}) inVec
   | not (Xag.valid $ Xag.Graph simNodes) = Nothing
   | not (IntSet.null (Xag.freeVariables $ Xag.Graph simNodes)) = Nothing
   | otherwise =
@@ -84,29 +88,27 @@ main = do
   QC.quickCheck prop_coverIsComplete
   QC.quickCheck prop_coverIsMinimal
   -- quickCheck prop_normalizePreservesFreeVariables
-  adder <- Xag.Benchmarks.adder
-  let Xag.Graph nodes = Xag.Benchmarks.xag adder
-  let (inVec, outVec) = head (Xag.Benchmarks.testVectors adder)
-  print (length nodes)
-  let result =
-        eval
-          (Xag.Benchmarks.xag adder)
-          (Xag.Benchmarks.inputOrder adder)
-          (Xag.Benchmarks.outputOrder adder)
-          inVec
-  print $ Just outVec
-  print $ Just outVec == result
-  print result
+  verify "adder" Xag.Benchmarks.adder
+  verify "bar" Xag.Benchmarks.bar
+  verify "div" Xag.Benchmarks.div
+  verify "hyp" Xag.Benchmarks.hyp
+  verify "log2" Xag.Benchmarks.log2
+  verify "max" Xag.Benchmarks.max
+  verify "multiplier" Xag.Benchmarks.multiplier
+  verify "sin" Xag.Benchmarks.sin
+  verify "sqrt" Xag.Benchmarks.sqrt
+  verify "square" Xag.Benchmarks.square
+  where
+    verify name benchReader = do
+      bench <- benchReader
+      let Xag.Graph nodes = Xag.Benchmarks.xag bench
+      putStrLn $ "Validating " ++ name ++ ": " ++ show (length nodes) ++ " nodes"
+      hFlush stdout
+      mapM_ (uncurry $ uncurry $ validate bench) (zip (Xag.Benchmarks.testVectors bench) [0 ..])
+      hFlush stdout
 
-  xag2 <- QC.generate (QC.resize 0 (QC.arbitrary :: QC.Gen Xag.Graph))
-  print xag2
-  xag3 <- QC.generate (QC.resize 1 (QC.arbitrary :: QC.Gen Xag.Graph))
-  print xag3
-  xag4 <- QC.generate (QC.resize 2 (QC.arbitrary :: QC.Gen Xag.Graph))
-  print xag4
-  xag5 <- QC.generate (QC.resize 3 (QC.arbitrary :: QC.Gen Xag.Graph))
-  print xag5
-  xag6 <- QC.generate (QC.resize 4 (QC.arbitrary :: QC.Gen Xag.Graph))
-  print xag6
-  xag7 <- QC.generate (QC.resize 5 (QC.arbitrary :: QC.Gen Xag.Graph))
-  print xag7
+    validate :: Xag.Benchmarks.BenchmarkInput -> [Bool] -> [Bool] -> Int -> IO ()
+    validate bench inVec outVec idx =
+      case eval bench inVec of
+        Nothing -> putStrLn ("  Invalid test or XAG, #" ++ show idx)
+        Just result -> if result == outVec then return () else putStrLn ("  FAIL! #" ++ show idx)
