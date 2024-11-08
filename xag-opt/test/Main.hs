@@ -1,10 +1,15 @@
 module Main (main) where
 
+import Data.Bits
+import qualified Data.IntMap as IntMap
 import qualified Data.IntSet as IntSet
-import Test.QuickCheck
-import Xag.Benchmarks
-import Xag.Graph as Xag
-import Xag.Optimize
+import Data.List (sort)
+import Debug.Trace (trace)
+import qualified Test.QuickCheck as QC
+import qualified Xag.Benchmarks
+import qualified Xag.Graph as Xag
+
+-- import Xag.Optimize
 
 {-
   xag2 <- generate (resize 0 (arbitrary :: Gen Xag))
@@ -21,91 +26,85 @@ import Xag.Optimize
   print xag7
 -}
 
--- IntSet.intersection (freeVariables g) (outputs g) == IntSet.empty
+prop_valid :: Xag.Graph -> Bool
+prop_valid = Xag.valid
 
--- xag <- generate (arbitrary :: Gen Graph)
--- print xag
--- testGraph :: Graph
--- testGraph =
---   Graph
---     [ Const 0 True,
---       Xor 6 [0, 0, 2, 0],
---       Xor 7 [0, 2, 6, 3],
---       Xor 8 [1, 7, 4, 6],
---       Xor 9 [0, 1],
---       And 10 [1, 7, 5, 3],
---       And 11 [2, 1, 1, 1, 1],
---       Xor 12 [1, 6],
---       And 13 [1, 6, 0],
---       And 14 [1, 1, 0],
---       Xor 15 [1, 0, 9, 7],
---       Xor 16 [7, 1, 1, 0, 0],
---       Xor 17 [7, 1],
---       Xor 18 [9, 1, 12, 0],
---       Xor 19 [16, 0, 5, 2],
---       Xor 20 [0, 18],
---       Xor 21 [15, 1, 0],
---       Xor 22 [0, 13, 1, 1],
---       And 23 [0, 18, 0, 12],
---       Xor 24 [8, 0, 1, 3],
---       Xor 25 [1, 21, 0, 0],
---       Xor 26 [21, 1, 4],
---       And 27 [0, 0],
---       And 28 [0, 19],
---       And 29 [1, 20, 23, 0],
---       And 30 [13, 29],
---       And 31 [24, 1, 0, 1],
---       And 32 [1, 4, 1, 1, 10],
---       Xor 33 [5, 0, 24, 20, 10],
---       And 34 [1, 1]
---     ]
--- print (Xag.cover (IntSet.fromList [13]) testGraph)
--- print (Xag.cover (IntSet.fromList [33]) testGraph)
--- print (Xag.cover (IntSet.fromList [34]) testGraph)
--- print $ normalize (Graph [Const 0 True, Xor 2 (IntSet.fromList [0, 1])])
--- print (Xag.cover (IntSet.fromList [0]) (Graph [Const 0 True]))
-
-prop_valid :: Graph -> Bool
-prop_valid = valid
-
-prop_freeVarsNotInOutputs :: Graph -> Bool
+prop_freeVarsNotInOutputs :: Xag.Graph -> Bool
 prop_freeVarsNotInOutputs g =
-  IntSet.intersection (freeVariables g) (outputs g) == IntSet.empty
+  IntSet.intersection (Xag.freeVariables g) (Xag.outputs g) == IntSet.empty
 
-prop_coverIsComplete :: Graph -> Property
-prop_coverIsComplete g = forAll gen prop
+prop_coverIsComplete :: Xag.Graph -> QC.Property
+prop_coverIsComplete g = QC.forAll gen prop
   where
-    Graph nodes = g
-    gen = oneof (map (return . nodeId) nodes)
+    Xag.Graph nodes = g
+    gen = QC.oneof (map (return . Xag.nodeId) nodes)
     prop someId =
       let cov = Xag.cover (IntSet.fromList [someId]) g
-       in IntSet.intersection (freeVariables cov) (outputs g) == IntSet.empty
+       in IntSet.intersection (Xag.freeVariables cov) (Xag.outputs g) == IntSet.empty
 
-prop_coverIsMinimal :: Graph -> Property
-prop_coverIsMinimal (Graph []) = property True
-prop_coverIsMinimal g@(Graph nodes) = forAll gen prop
+prop_coverIsMinimal :: Xag.Graph -> QC.Property
+prop_coverIsMinimal (Xag.Graph []) = QC.property True
+prop_coverIsMinimal g@(Xag.Graph nodes) = QC.forAll gen prop
   where
-    gen = oneof (map (return . nodeId) nodes)
+    gen = QC.oneof (map (return . Xag.nodeId) nodes)
     prop someId =
-      let cov@(Graph covNodes) = Xag.cover (IntSet.fromList [someId]) g
+      let cov@(Xag.Graph covNodes) = Xag.cover (IntSet.fromList [someId]) g
        in IntSet.difference
-            (outputs cov)
-            -- This fold finds all the refs in the (Xag.cover) graph
-            (foldr IntSet.union IntSet.empty (map nodeRefs covNodes))
+            (Xag.outputs cov)
+            -- This fold finds all the refs in the (Xag.cover) Xag.Graph
+            (foldr (IntSet.union . Xag.nodeRefs) IntSet.empty covNodes)
             -- The only output left after accounting for internal refs should
             --  be the one that initiated the Xag.cover
             == IntSet.fromList [someId]
 
--- prop_normalizePreservesFreeVariables :: Graph -> Bool
--- prop_normalizePreservesFreeVariables g = freeVariables g == freeVariables (normalize g)
+eval :: Xag.Graph -> [Int] -> [Int] -> [Bool] -> Maybe [Bool]
+eval (Xag.Graph nodes) inOrd outOrd inVec
+  | not (Xag.valid $ Xag.Graph simNodes) = Nothing
+  | not (IntSet.null (Xag.freeVariables $ Xag.Graph simNodes)) = Nothing
+  | otherwise =
+      let resMap = foldl doEval IntMap.empty simNodes
+       in Just $ map (resMap IntMap.!) outOrd
+  where
+    doEval :: IntMap.IntMap Bool -> Xag.Node -> IntMap.IntMap Bool
+    doEval res (Xag.Const nid val) = IntMap.insert nid val res
+    doEval res (Xag.Not nid xId) = IntMap.insert nid (res IntMap.! xId) res
+    doEval res (Xag.Xor nid xId yId) = IntMap.insert nid ((res IntMap.! xId) `xor` (res IntMap.! yId)) res
+    doEval res (Xag.And nid xId yId) = IntMap.insert nid ((res IntMap.! xId) .&. (res IntMap.! yId)) res
+
+    simNodes = sort (fixVars ++ nodes)
+    fixVars = zipWith Xag.Const inOrd inVec
+
+-- prop_normalizePreservesFreeVariables :: Xag.Graph -> Bool
+-- prop_normalizePreservesFreeVariables g = Xag.freeVariables g == Xag.freeVariables (normalize g)
 
 main :: IO ()
 main = do
-  quickCheck prop_valid
-  quickCheck prop_freeVarsNotInOutputs
-  quickCheck prop_coverIsComplete
-  quickCheck prop_coverIsMinimal
+  QC.quickCheck prop_valid
+  QC.quickCheck prop_freeVarsNotInOutputs
+  QC.quickCheck prop_coverIsComplete
+  QC.quickCheck prop_coverIsMinimal
   -- quickCheck prop_normalizePreservesFreeVariables
   adder <- Xag.Benchmarks.adder
-  let Graph nodes = xag adder
+  let Xag.Graph nodes = Xag.Benchmarks.xag adder
+  let (inVec, outVec) = head (Xag.Benchmarks.testVectors adder)
   print (length nodes)
+  let result =
+        eval
+          (Xag.Benchmarks.xag adder)
+          (Xag.Benchmarks.inputOrder adder)
+          (Xag.Benchmarks.outputOrder adder)
+          inVec
+  print $ Just outVec == result
+
+  xag2 <- QC.generate (QC.resize 0 (QC.arbitrary :: QC.Gen Xag.Graph))
+  print xag2
+  xag3 <- QC.generate (QC.resize 1 (QC.arbitrary :: QC.Gen Xag.Graph))
+  print xag3
+  xag4 <- QC.generate (QC.resize 2 (QC.arbitrary :: QC.Gen Xag.Graph))
+  print xag4
+  xag5 <- QC.generate (QC.resize 3 (QC.arbitrary :: QC.Gen Xag.Graph))
+  print xag5
+  xag6 <- QC.generate (QC.resize 4 (QC.arbitrary :: QC.Gen Xag.Graph))
+  print xag6
+  xag7 <- QC.generate (QC.resize 5 (QC.arbitrary :: QC.Gen Xag.Graph))
+  print xag7

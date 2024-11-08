@@ -23,16 +23,39 @@ import qualified Test.QuickCheck as QC
 -- each Node referring only to prior XagNodes via its inputs. References to
 -- nodeIds not in the list are free variables.
 
--- Note that although the Const node can take value True or False, only True is
--- useful in analysis -- False inputs to Xor can be trivially pruned, and False
--- inputs to And mean the And can be trivially converted to a Const False.
+-- Although we include Const nodes for flexibility, you can eliminate them from
+-- any graph by transforming to a graph that applies Not to free variables
+-- (assuming there are free variables in the graph to start with, that is -- if
+-- there are not then the graph isn't very interesting, of course).
+
+-- Alternatively, we could have included just Const True, and not Not, by
+-- substituting (Xor True x) for (Not x). This would also be obfuscatory for the
+-- kind of input and output we deal with.
 
 data Node
   = Const {nodeId :: !Int, value :: !Bool}
   | Not {nodeId :: !Int, xIn :: !Int}
   | Xor {nodeId :: !Int, xIn :: !Int, yIn :: !Int}
   | And {nodeId :: !Int, xIn :: !Int, yIn :: !Int}
-  deriving (Eq, Generic, Ord, Read, Show)
+  deriving (Eq, Generic, Read, Show)
+
+instance Ord Node where
+  compare :: Node -> Node -> Ordering
+  compare x y
+    | nidOrd == EQ = compareType x y
+    | otherwise = nidOrd
+    where
+      nidOrd = compare (nodeId x) (nodeId y)
+      -- Same-type: drill down
+      compareType (Const _ xVal) (Const _ yVal) = compare xVal yVal
+      compareType (Not _ xXIn) (Not _ yXIn) = compare xXIn yXIn
+      compareType (Xor _ xXIn xYIn) (Xor _ yXIn yYIn) = compare xXIn yXIn <> compare xYIn yYIn
+      compareType (And _ xXIn xYIn) (And _ yXIn yYIn) = compare xXIn yXIn <> compare xYIn yYIn
+      -- Different-type: early out
+      compareType (Const {}) _ = LT
+      compareType (Not {}) _ = LT
+      compareType (Xor {}) _ = LT
+      compareType (And {}) _ = undefined
 
 newtype Graph = Graph [Node] deriving (Eq, Generic, Ord, Read, Show)
 
