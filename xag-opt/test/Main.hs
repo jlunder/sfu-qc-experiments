@@ -67,7 +67,7 @@ eval (Xag.Graph nodes) inOrd outOrd inVec
   where
     doEval :: IntMap.IntMap Bool -> Xag.Node -> IntMap.IntMap Bool
     doEval res (Xag.Const nid val) = IntMap.insert nid val res
-    doEval res (Xag.Not nid xId) = IntMap.insert nid (res IntMap.! xId) res
+    doEval res (Xag.Not nid xId) = IntMap.insert nid (not $ res IntMap.! xId) res
     doEval res (Xag.Xor nid xId yId) = IntMap.insert nid ((res IntMap.! xId) `xor` (res IntMap.! yId)) res
     doEval res (Xag.And nid xId yId) = IntMap.insert nid ((res IntMap.! xId) .&. (res IntMap.! yId)) res
 
@@ -94,7 +94,9 @@ main = do
           (Xag.Benchmarks.inputOrder adder)
           (Xag.Benchmarks.outputOrder adder)
           inVec
+  print $ Just outVec
   print $ Just outVec == result
+  print result
 
   xag2 <- QC.generate (QC.resize 0 (QC.arbitrary :: QC.Gen Xag.Graph))
   print xag2
