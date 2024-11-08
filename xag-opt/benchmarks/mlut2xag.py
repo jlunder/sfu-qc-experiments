@@ -215,53 +215,67 @@ def make_test_vectors(
 @dataclass
 class XagNode:
     nid: int
+
     def eval(self, vals: dict[int, bool]):
         raise NotImplementedError(f"{__class__.__name__}.eval")
 
     def xagb(self):
         raise NotImplementedError(f"{__class__.__name__}.xagb")
 
+
 @dataclass
 class Const(XagNode):
     value: bool
+
     def eval(self, vals: dict[int, bool]):
         assert self.nid not in vals
         vals[self.nid] = self.value
+
     def xagb(self):
         return f"Const {{nodeId = {self.nid}, value = {self.value}}}"
+
 
 @dataclass
 class Not(XagNode):
     x: int
+
     def eval(self, vals: dict[int, bool]):
         assert self.nid not in vals
         vals[self.nid] = not vals[self.x]
+
     def xagb(self):
         return f"Not {{nodeId = {self.nid}, xIn = {self.x}}}"
+
 
 @dataclass
 class Xor(XagNode):
     x: int
     y: int
+
     def eval(self, vals: dict[int, bool]):
         assert self.nid not in vals
         vals[self.nid] = vals[self.x] ^ vals[self.y]
+
     def xagb(self):
         return f"Xor {{nodeId = {self.nid}, xIn = {self.x}, yIn = {self.y}}}"
+
 
 @dataclass
 class And(XagNode):
     x: int
     y: int
+
     def eval(self, vals: dict[int, bool]):
         assert self.nid not in vals
         vals[self.nid] = vals[self.x] & vals[self.y]
+
     def xagb(self):
         return f"And {{nodeId = {self.nid}, xIn = {self.x}, yIn = {self.y}}}"
 
+
 def gen_xag(
     gates: list[Gate], input_gates: list[Gate], output_gates: list[Gate]
-) -> tuple[list[XagNode], list[int]]:
+) -> tuple[list[XagNode], list[int], dict[int, int]]:
     # idf = lambda x: int(x)
     # notf = lambda x: int(not bool(x))
     # xorf = lambda x,y: int(bool(x) ^ bool(y))
@@ -271,16 +285,16 @@ def gen_xag(
     #     for nk, fk in [(" ", idf), ("~", notf)]:
     #         for nj, fj in [(" y", idf), ("~y", notf)]:
     #             for ni, fi in [(" x", idf), ("~x", notf)]:
-    #                 print(f"{nk}({ni}{nc}{nj}) -> {[fk(fc(fi(x), fj(y))) for x, y in [(0, 0), (0, 1), (1, 0), (1, 1)]]}")
+    #                 logger.info(f"{nk}({ni}{nc}{nj}) -> {[fk(fc(fi(x), fj(y))) for x, y in [(0, 0), (1, 0), (0, 1), (1, 1)]]}")
 
-    # produces:
+    # produces the function -> truth table reference:
     #  ( x& y) -> [0, 0, 0, 1]
-    #  (~x& y) -> [0, 1, 0, 0]
-    #  ( x&~y) -> [0, 0, 1, 0]
+    #  (~x& y) -> [0, 0, 1, 0]
+    #  ( x&~y) -> [0, 1, 0, 0]
     #  (~x&~y) -> [1, 0, 0, 0]
     # ~( x& y) -> [1, 1, 1, 0]
-    # ~(~x& y) -> [1, 0, 1, 1]
-    # ~( x&~y) -> [1, 1, 0, 1]
+    # ~(~x& y) -> [1, 1, 0, 1]
+    # ~( x&~y) -> [1, 0, 1, 1]
     # ~(~x&~y) -> [0, 1, 1, 1]
     #  ( x^ y) -> [0, 1, 1, 0]
     #  (~x^ y) -> [1, 0, 0, 1]
@@ -291,78 +305,78 @@ def gen_xag(
     # ~( x^~y) -> [0, 1, 1, 0]
     # ~(~x^~y) -> [1, 0, 0, 1]
 
-
+    # subcircuits is a lookup ordered by truth table
     subcircuits = [
         # 0 1 0 1 (x)
         # 0 0 1 1 (y)
         # -------
         # 0 0 0 0
-        lambda x, y, n: [Const(n+0, False)],  # PATHOLOGICAL
+        lambda x, y, n: [Const(n + 0, False)],  # PATHOLOGICAL
         # 1 0 0 0
         lambda x, y, n: [
-            Not(n+0, x),
-            Not(n+1, y),
-            And(n+2, n+0, n+1),
+            Not(n + 0, x),
+            Not(n + 1, y),
+            And(n + 2, n + 0, n + 1),
         ],
         # 0 1 0 0
         lambda x, y, n: [
-            Not(n+0, x),
-            And(n+1, n+0, y),
+            Not(n + 0, y),
+            And(n + 1, x, n + 0),
         ],
         # 1 1 0 0
-        lambda x, y, n: [Not(n+0, y)],  # PATHOLOGICAL
+        lambda x, y, n: [Not(n + 0, y)],  # PATHOLOGICAL
         # 0 0 1 0
         lambda x, y, n: [
-            Not(n+0, y),
-            And(n+1, x, n+0),
+            Not(n + 0, x),
+            And(n + 1, n + 0, y),
         ],
         # 1 0 1 0
-        lambda x, y, n: [Not(n+0, x)],  # PATHOLOGICAL
+        lambda x, y, n: [Not(n + 0, x)],  # PATHOLOGICAL
         # 0 1 1 0
-        lambda x, y, n: [Xor(n+0, x, y)],
+        lambda x, y, n: [Xor(n + 0, x, y)],
         # 1 1 1 0
         lambda x, y, n: [
-            And(n+0, x, y),
-            Not(n+1, n+0),
+            And(n + 0, x, y),
+            Not(n + 1, n + 0),
         ],
         # 0 0 0 1
-        lambda x, y, n: [And(n+0, x, y)],
+        lambda x, y, n: [And(n + 0, x, y)],
         # 1 0 0 1
         lambda x, y, n: [
-            Not(n+0, x),
-            Xor(n+1, n+0, y),
+            Not(n + 0, x),
+            Xor(n + 1, n + 0, y),
         ],
         # 0 1 0 1
         lambda x, y, n: [
-            Not(n+0, x),
-            Not(n+1, n+0),
+            Not(n + 0, x),
+            Not(n + 1, n + 0),
         ],  # PATHOLOGICAL
         # 1 1 0 1
         lambda x, y, n: [
-            Not(n+0, y),
-            And(n+1, x, n+0),
-            Not(n+2, n+1),
+            Not(n + 0, x),
+            And(n + 1, n + 0, y),
+            Not(n + 2, n + 1),
         ],
         # 0 0 1 1
         lambda x, y, n: [
-            Not(n+0, y),
-            Not(n+1, n+0),
+            Not(n + 0, y),
+            Not(n + 1, n + 0),
         ],  # PATHOLOGICAL
         # 1 0 1 1
         lambda x, y, n: [
-            Not(n+0, x),
-            And(n+1, n+0, y),
-            Not(n+2, n+1),
+            Not(n + 0, y),
+            And(n + 1, x, n + 0),
+            Not(n + 2, n + 1),
         ],
         # 0 1 1 1
         lambda x, y, n: [
-            Not(n+0, x),
-            Not(n+1, y),
-            And(n+2, n+0, n+1),
-            Not(n+3, n+2),
+            Not(n + 0, x),
+            Not(n + 1, y),
+            And(n + 2, n + 0, n + 1),
+            Not(n + 3, n + 2),
         ],
         # 1 1 1 1
-        lambda x, y, n: [Const(n+0, True)],  # PATHOLOGICAL
+        lambda x, y, n: [Const(n + 0, True)],  # PATHOLOGICAL
     ]
 
     lut_questionable = [
@@ -387,25 +401,71 @@ def gen_xag(
         True,  # 1 1 1 1
     ]
 
+    # logger.info("Checking truth tables")
+    # for i, sc in enumerate(subcircuits):
+    #     tt = unpack_bits(i, 4)
+    #     logger.info(f"  TT #{i}:")
+    #     logger.info(f"    x y q Q ok?")
+    #     for j in range(4):
+    #         xv, yv = unpack_bits(j, 2)
+    #         xag = [Const(0, xv), Const(1, yv)] + sc(0, 1, 2)
+    #         vals = {}
+    #         for node in xag:
+    #             node.eval(vals)
+    #         qv = vals[len(xag) - 1]
+    #         logger.info(f"    {int(xv)} {int(yv)} {int(tt[j])} {int(qv)} {'OK' if qv == tt[j] else 'NOT OK'}")
+
     gen_index = {i: i for i in range(len(input_gates))}
     xag_nodes = [Const(0, False), Const(1, True)]
     n = len(input_gates)
-    for i, g in enumerate(gates[len(input_gates) : -len(output_gates)]):
-        assert len(g.input_ids) == 2
-        packed_lut = pack_bits(g.lut)
-        if lut_questionable[packed_lut]:
-            logger.warning(f"Gate {i} has questionable LUT: {g.lut}")
-        xid, yid = g.input_ids
-        xn = gen_index[xid]
-        yn = gen_index[yid]
-        sub = subcircuits[packed_lut](xn, yn, n)
-        assert len(sub) > 0
+
+    assert all(x is y for x, y in zip(input_gates, gates[: len(input_gates)]))
+    assert all(x is y for x, y in zip(output_gates, gates[-len(output_gates) :]))
+
+    first_output_gate = len(gates) - len(output_gates)
+    output_order = []
+
+    for ii, g in enumerate(gates[len(input_gates) :]):
+        i = ii + len(input_gates)
+        sub: list[XagNode]
+        result_nid: int
+        if len(g.lut) == 2:
+            assert len(g.input_ids) == 1 or (
+                len(g.input_ids) == 2 and g.input_ids[1] == -2
+            )
+            packed_lut = pack_bits(g.lut)
+            xn = gen_index[g.input_ids[0]]
+            if packed_lut == 0b01:
+                # inverter
+                sub = [Not(n + 0, xn)]
+                result_nid = n + len(sub) - 1
+            elif packed_lut == 0b10:
+                # buffer
+                sub = []
+                result_nid = xn
+        elif len(g.lut) == 4:
+            assert len(g.input_ids) == 2
+            packed_lut = pack_bits(g.lut)
+            if lut_questionable[packed_lut]:
+                logger.warning(f"Gate {i} has questionable LUT: {g.lut}")
+            xid, yid = g.input_ids
+            xn = gen_index[xid]
+            yn = gen_index[yid]
+            sub = subcircuits[packed_lut](xn, yn, n)
+            assert len(sub) > 0
+            result_nid = n + len(sub) - 1
+        else:
+            assert len(g.lut) == 2 or len(g.lut) == 4
         n += len(sub)
         xag_nodes += sub
-        assert (i + len(input_gates)) not in gen_index
-        gen_index[i + len(input_gates)] = n - 1
-    
-    return xag_nodes, [gen_index[g.input_ids[0]] for g in output_gates]
+        assert i not in gen_index
+        gen_index[i] = result_nid
+
+    return (
+        xag_nodes,
+        [gen_index[i] for i in range(first_output_gate, len(gates))],
+        gen_index,
+    )
 
 
 if __name__ == "__main__":
@@ -424,17 +484,19 @@ if __name__ == "__main__":
 
         print("BenchmarkInput")
         gates, input_gates, output_gates = read_mlut(f)
-        xag_nodes, output_order = gen_xag(gates, input_gates, output_gates)
+        xag_nodes, output_order, gen_index = gen_xag(gates, input_gates, output_gates)
         print("  { xag =")
         print("      Graph")
         xag_array_str = ",\n          ".join((n.xagb() for n in xag_nodes))
         print(f"        [ {xag_array_str}\n        ],")
         print()
 
-        print(f"    inputOrder = [ {', '.join(map(str, range(2, len(input_gates))))} ],")
+        print(
+            f"    inputOrder = [ {', '.join(map(str, range(2, len(input_gates))))} ],"
+        )
         print()
 
-        output_order_str = ", ".join((str(g.input_ids[0]) for g in output_gates))
+        output_order_str = ", ".join((str(i) for i in output_order))
         print(f"    outputOrder = [ {output_order_str} ],")
         print()
 
@@ -448,13 +510,26 @@ if __name__ == "__main__":
         print("  }")
 
         for i, (ti, to) in enumerate(test_vectors):
-            xag = xag_nodes[:2] + [Const(nid, val) for nid, val in zip(range(2, len(input_gates)), ti)] + xag_nodes[2:]
+            xag = (
+                xag_nodes[:2]
+                + [Const(nid, val) for nid, val in zip(range(2, len(input_gates)), ti)]
+                + xag_nodes[2:]
+            )
+            xag_index = {n.nid: i for i, n in enumerate(xag)}
             vals = {}
             for node in xag:
                 node.eval(vals)
-            out = [vals[g.input_ids[0]] for g in output_gates]
+            out = [vals[i] for i in output_order]
             if out != to:
-                logger.warning(f"Output does not match for test vector {i} = {[int(x) for x in ti]}")
+                logger.warning(
+                    f"Output does not match for test vector {i} = {[int(x) for x in ti]}"
+                )
                 logger.warning(f"Expected: {[int(x) for x in to]}")
                 logger.warning(f"     Got: {[int(x) for x in out]}")
-                
+                compute(gates, input_gates, output_gates, ti)
+                for i, g in enumerate(gates):
+                    if vals[gen_index[i]] != g.memo_result:
+                        xagi = gen_index[i]
+                        logger.warning(
+                            f"Failed at {i}: lut {g.lut}, generated {xag[xagi - 4:xagi + 1]}({xagi})"
+                        )
