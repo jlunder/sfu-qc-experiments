@@ -256,57 +256,45 @@ data ReductionFail
 
 instance Exception ReductionFail
 
-doAdderReduction :: IO ()
-doAdderReduction = do
-  putStrLn "doAdderReduction"
+doBenchReduction :: String -> IO Xag.Benchmarks.BenchmarkInput -> IO ()
+doBenchReduction name benchReader = do
+  putStrLn $ "doBenchReduction " ++ name
   hFlush stdout
 
-  bench <- Xag.Benchmarks.adder
-  let init = Xag.Benchmarks.xag bench
+  bench <- benchReader
+  let original = Xag.Benchmarks.xag bench
 
-  verify "adder" bench
+  verify name bench
 
   putStrLn "finding reducible"
   hFlush stdout
-  let reducibleIds = findReducible init
-  putStrLn $ "adder findReducible: " ++ show reducibleIds
+  let reducibleIds = findReducible original
+  putStrLn $ "findReducible " ++ name ++ ": " ++ show reducibleIds
 
   putStrLn "performing reduction"
   hFlush stdout
   reduced <-
     foldM
-      (\g id -> maybe undefined return (reduceAndToNotXor id g))
-      init
+      (\g rId -> maybe undefined return (reduceAndToNotXor rId g))
+      original
       (reverse reducibleIds)
 
   verify
-    "reduced adder"
+    ("reduced " ++ name)
     (Xag.Benchmarks.BenchmarkInput reduced (Xag.Benchmarks.testVectors bench))
   hFlush stdout
 
--- putStrLn "finding reducible 2"
--- hFlush stdout
--- let reducibleIds2 = findReducible reduced
-
--- let reduced2 = foldl (flip reduceAndToNotXor) reduced (reverse reducibleIds2)
--- verify
---   "reduced adder 2"
---   (Xag.Benchmarks.BenchmarkInput reduced2 (Xag.Benchmarks.testVectors bench))
--- hFlush stdout
-
--- putStrLn "finding reducible 3"
--- hFlush stdout
--- let reducibleIds3 = findReducible reduced2
-
--- let reduced3 = foldl (flip reduceAndToNotXor) reduced (reverse reducibleIds3)
--- verify
---   "reduced adder 3"
---   (Xag.Benchmarks.BenchmarkInput reduced3 (Xag.Benchmarks.testVectors bench))
--- hFlush stdout
+  putStrLn "finding new reducible"
+  hFlush stdout
+  let newReducibleIds = findReducible reduced
+  putStrLn $ "findReducible " ++ name ++ " (repeat): " ++ show newReducibleIds
 
 main :: IO ()
 main = do
   when False doQuickCheckTests
   when False doVerifyTests
   when False doSimpleReduction
-  when True doAdderReduction
+  when True $ doBenchReduction "adder" Xag.Benchmarks.adder
+  when True $ doBenchReduction "bar" Xag.Benchmarks.bar
+  when True $ doBenchReduction "div" Xag.Benchmarks.div
+  when True $ doBenchReduction "sin" Xag.Benchmarks.sin
