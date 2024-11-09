@@ -6,6 +6,7 @@ module Xag.Graph
   ( Node (..),
     Graph (..),
     cover,
+    dominatingAnds,
     eval,
     freeVariables,
     nodeRefs,
@@ -95,6 +96,44 @@ cover initialIds allNodes = reverse (coverRev initialIds (reverse allNodes))
       if IntSet.member (nodeId node) coverIds
         then node : coverRev (IntSet.union coverIds (nodeRefs node)) nodes
         else coverRev coverIds nodes
+
+-- The returns from this are a list of And nodes And-directly dominating the
+-- ofId node -- that is, the dominators may be separated by Xor or Not nodes,
+-- but there aren't any intervening Ands.
+-- The returned list contains tuples with the node id of the dominating And,
+-- the id of the node that And was reached via, and the id of the node it
+-- wasn't reached via. In the case that a dominator is reached via multiple
+-- paths simultaneously, the node will appear twice in the list with both node
+-- orders.
+dominatingAnds :: Int -> [Node] -> [(Int, (Int, Int))]
+dominatingAnds ofId allNodes = dominatingAndsOfId (IntSet.singleton ofId) (skipToNode allNodes)
+  where
+    -- Don't even start looking until after the subject node
+    skipToNode :: [Node] -> [Node]
+    skipToNode [] = []
+    skipToNode wholeList@(node : nodes)
+      | nodeId node > ofId = wholeList
+      | otherwise = skipToNode nodes
+
+    dominatingAndsOfId :: IntSet.IntSet -> [Node] -> [(Int, (Int, Int))]
+    dominatingAndsOfId _ [] = []
+    dominatingAndsOfId searchSet (node : nodes) =
+      case node of
+        -- Const nodes can't dominate anything
+        Const _ _ -> dominatingAndsOfId searchSet nodes
+        -- Not: Add this node to the search list if it's controlled by anything in the search list
+        Not nId xId -> dominatingAndsOfId (expandSearchIf (IntSet.member xId searchSet) nId) nodes
+        -- Xor: Add this node to the search list if it's controlled by anything in the search list
+        Xor nId xId yId -> dominatingAndsOfId (expandSearchIf (IntSet.member xId searchSet || IntSet.member yId searchSet) nId) nodes
+        -- And gate found! But don't go looking for And dominating And, we only look 1 deep
+        And nId xId yId -> withXYDoms
+          where
+            withXYDoms = if IntSet.member xId searchSet then (nId, (xId, yId)) : withYDoms else withYDoms
+            withYDoms = if IntSet.member yId searchSet then (nId, (yId, xId)) : restOfDoms else restOfDoms
+            restOfDoms = dominatingAndsOfId searchSet nodes
+      where
+        expandSearchIf False _ = searchSet
+        expandSearchIf True nId = IntSet.insert nId searchSet
 
 nodeRefs :: Node -> IntSet.IntSet
 nodeRefs (Not _ x) = IntSet.singleton x

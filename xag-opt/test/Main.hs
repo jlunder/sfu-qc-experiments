@@ -8,6 +8,7 @@ import System.IO
 import Test.QuickCheck qualified as QC
 import Xag.Benchmarks qualified
 import Xag.Graph qualified as Xag
+import Xag.Optimize qualified as Xag
 
 -- import Xag.Optimize
 
@@ -59,8 +60,29 @@ prop_coverIsMinimal nodes = QC.forAll gen prop
 -- prop_normalizePreservesFreeVariables :: Xag.Graph -> Bool
 -- prop_normalizePreservesFreeVariables g = Xag.freeVariables g == Xag.freeVariables (normalize g)
 
+-- Xag.Const {nodeId = 0, value = False},
+-- Xag.Const {nodeId = 1, value = True},
+-- Xag.And {nodeId = 258, xIn = 2, yIn = 130},
+-- Xag.Xor {nodeId = 259, xIn = 2, yIn = 130},
+
+reducible1 :: [Xag.Node]
+reducible1 =
+  [ Xag.Xor 3 0 2,
+    Xag.Not 4 0,
+    Xag.And 5 4 1,
+    Xag.Not 6 3,
+    Xag.Not 7 5,
+    Xag.And 8 6 7,
+    Xag.Xor 9 5 2,
+    Xag.And 10 8 9
+  ]
+
 main :: IO ()
 main = do
+  putStrLn $ "cover: " ++ show (Xag.cover (IntSet.singleton 10) reducible1)
+  putStrLn $ "free: " ++ show (Xag.freeVariables reducible1)
+  putStrLn $ "reduce: " ++ show (Xag.canReduce 8 reducible1)
+
   QC.quickCheck (prop_valid . Xag.xagNodes)
   QC.quickCheck (prop_freeVarsNotInOutputs . Xag.xagNodes)
   QC.quickCheck (prop_coverIsComplete . Xag.xagNodes)
