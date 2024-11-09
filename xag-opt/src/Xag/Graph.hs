@@ -285,10 +285,6 @@ eval g@(Graph nodes inOrd outOrd) inVec
 -- andCost :: (Num b) => Graph a -> b
 -- andCost g = eval g (+) (\x y -> x + y + 1) (const 0)
 
--- (Xor x y)
--- (And x y)1
--- (Lit v)
-
 -- The Arbitrary makes a valid, arbitrary Graph with a gap for free variables,
 -- and then a number of Not, Xor, and And nodes to fill the list to the
 -- arbitrary size. Inputs are weighted to prefer earlier nodes, so as to bias
