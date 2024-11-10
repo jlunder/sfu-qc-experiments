@@ -214,17 +214,19 @@ doBenchReduction name benchReader = do
     (Xag.Benchmarks.BenchmarkInput reduced (Xag.Benchmarks.testVectors bench))
   hFlush stdout
 
-  putStrLn "finding new reducible"
-  hFlush stdout
-  let newReducibleIds = Xag.findReducible reduced
-  putStrLn $ "findReducible " ++ name ++ " (repeat): " ++ show newReducibleIds
-
 main :: IO ()
 main = do
   when False doQuickCheckTests
   when False doVerifyTests
   when False doSimpleReduction
-  when False $ doBenchReduction "adder" Xag.Benchmarks.adder
+  when True $ doBenchReduction "adder" Xag.Benchmarks.adder
   when True $ doBenchReduction "bar" Xag.Benchmarks.bar
   when True $ doBenchReduction "div" Xag.Benchmarks.div
+  -- hyp is just... really really big. It's probably a great stress test but I don't want to constantly run it
+  when False $ doBenchReduction "hyp" Xag.Benchmarks.hyp
+  when True $ doBenchReduction "log2" Xag.Benchmarks.log2
+  when True $ doBenchReduction "max" Xag.Benchmarks.max
+  when True $ doBenchReduction "multiplier" Xag.Benchmarks.multiplier
   when True $ doBenchReduction "sin" Xag.Benchmarks.sin
+  when True $ doBenchReduction "sqrt" Xag.Benchmarks.sqrt
+  when True $ doBenchReduction "square" Xag.Benchmarks.square
