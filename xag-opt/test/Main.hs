@@ -106,7 +106,7 @@ verify name bench = do
       ++ ": "
       ++ show (length nodes)
       ++ " nodes, "
-      ++ show (length (findAndIds nodes))
+      ++ show (length (Xag.findAndIds nodes))
       ++ " And"
   hFlush stdout
   mapM_ (uncurry $ uncurry $ validate g) (zip (testVectors bench) [0 ..])
@@ -123,76 +123,6 @@ validate g inVec outVec idx =
 -- Xag.And {nodeId = 258, xIn = 2, yIn = 130},
 -- Xag.Xor {nodeId = 259, xIn = 2, yIn = 130},
 
-findAndIds :: [Xag.Node] -> [Int]
-findAndIds [] = []
-findAndIds ((Xag.And {Xag.nodeId = nId}) : found) = nId : findAndIds found
-findAndIds (_ : found) = findAndIds found
-
-findReducibleNodes :: [Xag.Node] -> [Int]
-findReducibleNodes allNodes =
-  allReducibleOf (findAndIds allNodes)
-  where
-    allReducibleOf [] = []
-    allReducibleOf (tryId : idsRemaining) =
-      if Xag.canReduce tryId allNodes
-        then tryId : allReducibleOf idsRemaining
-        else allReducibleOf idsRemaining
-
-renumberNodes :: Int -> Int -> Int -> [Xag.Node] -> [Xag.Node]
-renumberNodes atId shiftByEq shiftByGt = renumberNodesAux
-  where
-    renumberNodesAux [] = []
-    renumberNodesAux (node : nodes) = renumberOne node : renumberNodesAux nodes
-
-    renumberOne (Xag.Const nId value) = Xag.Const (mapId nId) value
-    renumberOne (Xag.Not nId xId) = Xag.Not (mapId nId) (mapId xId)
-    renumberOne (Xag.Xor nId xId yId) = Xag.Xor (mapId nId) (mapId xId) (mapId yId)
-    renumberOne (Xag.And nId xId yId) = Xag.And (mapId nId) (mapId xId) (mapId yId)
-
-    mapId = renumberId atId shiftByEq shiftByGt
-
-renumberIds :: Int -> Int -> Int -> [Int] -> [Int]
-renumberIds atId shiftByEq shiftByGt = map (renumberId atId shiftByEq shiftByGt)
-
-renumberId :: Int -> Int -> Int -> Int -> Int
-renumberId atId shiftByEq shiftByGt nId
-  | nId < atId = nId
-  | nId == atId = nId + shiftByEq
-  | otherwise = nId + shiftByGt
-
-splitNodes :: Int -> [Xag.Node] -> ([Xag.Node], [Xag.Node])
-splitNodes atId allNodes = (take atIndex allNodes, rightNodes)
-  where
-    (atIndex, rightNodes) = findSplit 0 allNodes
-    findSplit index [] = (index, [])
-    findSplit index (node : nodes)
-      | Xag.nodeId node < atId = findSplit (index + 1) nodes
-      | otherwise = (index, node : nodes)
-
--- spliceNodes :: Int -> Int -> [Xag.Node] -> Int -> Int -> [Xag.Node] -> [Xag.Node]
--- spliceNodes fromId toId insNodes shiftByEq shiftByGt allNodes =
---   leftNodes ++ insNodes ++ renumberNodes toId shiftByEq shiftByGt rightNodes
---   where
---     (_, rightNodes) = splitNodes toId notLeftNodes
---     (leftNodes, notLeftNodes) = splitNodes fromId allNodes
-
-findReducible :: Xag.Graph -> [Int]
-findReducible (Xag.Graph allNodes _ _) = findReducibleNodes allNodes
-
-reduceAndToNotXor :: Int -> Xag.Graph -> Maybe Xag.Graph
-reduceAndToNotXor andId (Xag.Graph allNodes inOrd outOrd) =
-  case splitNodes andId allNodes of
-    (leftNodes, Xag.And _ xId yId : rightNodes) -> Just (updateGraph leftNodes xId yId rightNodes)
-    (_, _) -> Nothing
-  where
-    updateGraph leftNodes xId yId rightNodes =
-      Xag.Graph updatedNodes inOrd (renumberIds andId 1 1 outOrd)
-      where
-        updatedNodes =
-          leftNodes
-            ++ [Xag.Xor andId xId yId, Xag.Not (andId + 1) andId]
-            ++ renumberNodes andId 1 1 rightNodes
-
 doSimpleReduction :: IO ()
 doSimpleReduction = do
   putStrLn "doSimpleReduction"
@@ -201,7 +131,7 @@ doSimpleReduction = do
   putStrLn $ "cover: " ++ show (Xag.cover (IntSet.singleton 10) (Xag.xagNodes reducible1))
   putStrLn $ "free: " ++ show (Xag.freeVariables (Xag.xagNodes reducible1))
   putStrLn $ "reduce: " ++ show (Xag.canReduce 8 (Xag.xagNodes reducible1))
-  let reductions = findReducible reducible1
+  let reductions = Xag.findReducible reducible1
   putStrLn $ "findReducible: " ++ show reductions
   hFlush stdout
   where
@@ -268,14 +198,14 @@ doBenchReduction name benchReader = do
 
   putStrLn "finding reducible"
   hFlush stdout
-  let reducibleIds = findReducible original
+  let reducibleIds = Xag.findReducible original
   putStrLn $ "findReducible " ++ name ++ ": " ++ show reducibleIds
 
   putStrLn "performing reduction"
   hFlush stdout
   reduced <-
     foldM
-      (\g rId -> maybe undefined return (reduceAndToNotXor rId g))
+      (\g rId -> maybe undefined return (Xag.reduceAndToNotXor rId g))
       original
       (reverse reducibleIds)
 
@@ -286,7 +216,7 @@ doBenchReduction name benchReader = do
 
   putStrLn "finding new reducible"
   hFlush stdout
-  let newReducibleIds = findReducible reduced
+  let newReducibleIds = Xag.findReducible reduced
   putStrLn $ "findReducible " ++ name ++ " (repeat): " ++ show newReducibleIds
 
 main :: IO ()
@@ -294,7 +224,7 @@ main = do
   when False doQuickCheckTests
   when False doVerifyTests
   when False doSimpleReduction
-  when True $ doBenchReduction "adder" Xag.Benchmarks.adder
+  when False $ doBenchReduction "adder" Xag.Benchmarks.adder
   when True $ doBenchReduction "bar" Xag.Benchmarks.bar
   when True $ doBenchReduction "div" Xag.Benchmarks.div
   when True $ doBenchReduction "sin" Xag.Benchmarks.sin
