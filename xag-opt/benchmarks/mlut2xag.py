@@ -232,7 +232,7 @@ class Const(XagNode):
         vals[self.nid] = self.value
 
     def xagb(self):
-        return f"Const {{nodeId = {self.nid}, value = {self.value}}}"
+        return f"Const {{nodeID = {self.nid}, value = {self.value}}}"
 
 
 @dataclass
@@ -244,7 +244,7 @@ class Not(XagNode):
         vals[self.nid] = not vals[self.x]
 
     def xagb(self):
-        return f"Not {{nodeId = {self.nid}, xIn = {self.x}}}"
+        return f"Not {{nodeID = {self.nid}, xIn = {self.x}}}"
 
 
 @dataclass
@@ -257,7 +257,7 @@ class Xor(XagNode):
         vals[self.nid] = vals[self.x] ^ vals[self.y]
 
     def xagb(self):
-        return f"Xor {{nodeId = {self.nid}, xIn = {self.x}, yIn = {self.y}}}"
+        return f"Xor {{nodeID = {self.nid}, xIn = {self.x}, yIn = {self.y}}}"
 
 
 @dataclass
@@ -270,7 +270,7 @@ class And(XagNode):
         vals[self.nid] = vals[self.x] & vals[self.y]
 
     def xagb(self):
-        return f"And {{nodeId = {self.nid}, xIn = {self.x}, yIn = {self.y}}}"
+        return f"And {{nodeID = {self.nid}, xIn = {self.x}, yIn = {self.y}}}"
 
 
 def gen_xag(
@@ -493,12 +493,12 @@ if __name__ == "__main__":
         print()
 
         print(
-            f"          inputOrder = [ {', '.join(map(str, range(2, len(input_gates))))} ],"
+            f"          inputIDs = [ {', '.join(map(str, range(2, len(input_gates))))} ],"
         )
         print()
 
         output_order_str = ", ".join((str(i) for i in output_order))
-        print(f"          outputOrder = [ {output_order_str} ]")
+        print(f"          outputIDs = [ {output_order_str} ]")
         print("        },")
         print()
 

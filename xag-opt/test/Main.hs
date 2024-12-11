@@ -11,7 +11,8 @@ import Test.QuickCheck qualified as QC
 import XAG.Benchmarks (BenchmarkInput (..))
 import XAG.Benchmarks qualified
 import XAG.Graph qualified as XAG
-import XAG.Optimize qualified as XAG
+import XAG.SDCODC qualified as XAG
+-- import XAG.Simplify qualified as XAG
 
 -- import XAG.Optimize
 
@@ -40,7 +41,7 @@ prop_freeVarsNotInOutputs g =
 prop_coverIsComplete :: [XAG.Node] -> QC.Property
 prop_coverIsComplete nodes = QC.forAll gen prop
   where
-    gen = QC.oneof (map (return . XAG.nodeId) nodes)
+    gen = QC.oneof (map (return . XAG.nodeID) nodes)
     prop someId =
       let cov = XAG.cover (IntSet.fromList [someId]) nodes
        in IntSet.intersection (XAG.freeVariables cov) (XAG.outputs nodes) == IntSet.empty
@@ -49,7 +50,7 @@ prop_coverIsMinimal :: [XAG.Node] -> QC.Property
 prop_coverIsMinimal [] = QC.property True
 prop_coverIsMinimal nodes = QC.forAll gen prop
   where
-    gen = QC.oneof (map (return . XAG.nodeId) nodes)
+    gen = QC.oneof (map (return . XAG.nodeID) nodes)
     prop someId =
       let cov = XAG.cover (IntSet.fromList [someId]) nodes
        in IntSet.difference
@@ -106,7 +107,7 @@ verify name bench = do
       ++ ": "
       ++ show (length nodes)
       ++ " nodes, "
-      ++ show (length (XAG.findAndIds nodes))
+      ++ show (length (XAG.findAndIDs nodes))
       ++ " And"
   hFlush stdout
   mapM_ (uncurry $ uncurry $ validate g) (zip (testVectors bench) [0 ..])
@@ -118,10 +119,10 @@ validate g inVec outVec idx =
     Nothing -> putStrLn ("  Invalid test or XAG, #" ++ show idx)
     Just result -> if result == outVec then return () else putStrLn ("  FAIL! #" ++ show idx)
 
--- XAG.Const {nodeId = 0, value = False},
--- XAG.Const {nodeId = 1, value = True},
--- XAG.And {nodeId = 258, xIn = 2, yIn = 130},
--- XAG.Xor {nodeId = 259, xIn = 2, yIn = 130},
+-- XAG.Const {nodeID = 0, value = False},
+-- XAG.Const {nodeID = 1, value = True},
+-- XAG.And {nodeID = 258, xIn = 2, yIn = 130},
+-- XAG.Xor {nodeID = 259, xIn = 2, yIn = 130},
 
 doSimpleReduction :: IO ()
 doSimpleReduction = do
@@ -136,7 +137,7 @@ doSimpleReduction = do
   hFlush stdout
   where
     -- let simpleTvs = [[a, b, c] | a <- [False, True], b <- [False, True], c <- [False, True]]
-    -- let reducible1Outs = XAG.outputOrder reducible1
+    -- let reducible1Outs = XAG.outputIDs reducible1
     -- print reducible1
     -- mapM_
     --   ( \tv -> do
@@ -149,7 +150,7 @@ doSimpleReduction = do
     --   )
     --   simpleTvs
     -- reduced <- foldl (flip reduceAndToNotXor) (Just reducible1) [10]
-    -- let reducedOuts = XAG.outputOrder reduced
+    -- let reducedOuts = XAG.outputIDs reduced
     -- print reduced
     -- mapM_
     --   ( \tv -> do
@@ -205,7 +206,7 @@ doBenchReduction name benchReader = do
   hFlush stdout
   reduced <-
     foldM
-      (\g rId -> maybe undefined return (XAG.reduceAndToNotXor rId g))
+      (\g rId -> return (XAG.reduceAndToNotXor rId g))
       original
       (reverse reducibleIds)
 

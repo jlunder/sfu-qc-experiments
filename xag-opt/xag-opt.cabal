@@ -63,7 +63,8 @@ library
     XAG.AffineEquivalence
     XAG.Benchmarks
     XAG.Graph
-    XAG.Optimize
+    XAG.SDCODC
+    XAG.Simplify
 
   -- Modules included in this library but not exported.
   -- other-modules:

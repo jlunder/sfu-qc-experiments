@@ -1,13 +1,25 @@
+{-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE ImplicitParams #-}
+
 module Main where
 
 import Options.Applicative.Simple
 
-data Options = Options
+newtype Options = Options
   { verbose :: Bool
   -- ,
   --   hello :: String,
   --   enthusiasm :: Int
-  } deriving (Show)
+  }
+
+newtype XagOptControl = XagOptControl
+  { xagOptControlVerbose :: Bool
+  }
+
+getCtlVerbose :: (HasXagOptControl) => Bool
+getCtlVerbose = xagOptControlVerbose ?xagOptControl
+
+type HasXagOptControl = (?xagOptControl :: XagOptControl)
 
 optionsParser :: Parser Options
 optionsParser =
@@ -32,6 +44,12 @@ optionsParser =
 --       <> metavar "INT"
 --   )
 
+doHello :: (HasXagOptControl) => IO ()
+doHello = do
+  if getCtlVerbose
+    then putStrLn "Hellooooo!"
+    else putStrLn "Hi"
+
 main :: IO ()
 main = do
   (options, ()) <-
@@ -41,4 +59,5 @@ main = do
       "" -- description
       optionsParser
       empty
-  print $ "options: " ++ show options
+  let ?xagOptControl = XagOptControl {xagOptControlVerbose = verbose options}
+   in doHello
