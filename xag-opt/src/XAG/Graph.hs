@@ -2,7 +2,7 @@
 {-# LANGUAGE ImportQualifiedPost #-}
 {-# LANGUAGE InstanceSigs #-}
 
-module Xag.Graph
+module XAG.Graph
   ( Node (..),
     Graph (..),
     cover,

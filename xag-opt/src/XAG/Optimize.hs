@@ -1,6 +1,6 @@
 {-# LANGUAGE ImportQualifiedPost #-}
 
-module Xag.Optimize
+module XAG.Optimize
   ( canReduce,
     findAndIds,
     findReducible,
@@ -15,9 +15,9 @@ import Data.List (sort)
 import Data.Maybe (isNothing, mapMaybe)
 -- import Debug.Trace (trace)
 import SAT.MiniSat
-import Xag.Graph qualified as Xag
+import XAG.Graph qualified as XAG
 
-canReduce :: Int -> [Xag.Node] -> Bool
+canReduce :: Int -> [XAG.Node] -> Bool
 canReduce reduceId allNodes =
   case findInputs allNodes of
     Nothing -> False
@@ -38,14 +38,14 @@ canReduce reduceId allNodes =
             then Yes
             else Some (map (\(_, (_, nId)) -> Var nId) dominators)
   where
-    findInputs :: [Xag.Node] -> Maybe (Int, Int)
+    findInputs :: [XAG.Node] -> Maybe (Int, Int)
     findInputs [] = Nothing
-    findInputs (Xag.And nId xId yId : nodes)
+    findInputs (XAG.And nId xId yId : nodes)
       | nId == reduceId = Just (xId, yId)
       | nId > reduceId = Nothing
       | otherwise = findInputs nodes
     findInputs (node : nodes)
-      | Xag.nodeId node >= reduceId = Nothing
+      | XAG.nodeId node >= reduceId = Nothing
       | otherwise = findInputs nodes
 
     coverClause = makeTseytin optCoverNodes
@@ -53,31 +53,31 @@ canReduce reduceId allNodes =
     optCoverNodes = optimizeCover 1000 coverNodes
     criticalIds = downstreamOf (IntSet.singleton reduceId) coverNodes
     -- cover of dominatorSet should implicitly include reduceId
-    coverNodes = Xag.cover dominatorIds allNodes
+    coverNodes = XAG.cover dominatorIds allNodes
     dominatorIds = IntSet.fromList $ map fst dominators
-    dominators = Xag.dominatingAnds reduceId allNodes
+    dominators = XAG.dominatingAnds reduceId allNodes
 
-    downstreamOf :: IntSet.IntSet -> [Xag.Node] -> IntSet.IntSet
+    downstreamOf :: IntSet.IntSet -> [XAG.Node] -> IntSet.IntSet
     downstreamOf searchSet [] = searchSet
     downstreamOf searchSet (node : nodes)
-      | IntSet.member (Xag.nodeId node) searchSet =
+      | IntSet.member (XAG.nodeId node) searchSet =
           downstreamOf (insertDeps intSetF node searchSet) nodes
       | otherwise = downstreamOf searchSet nodes
 
-    optimizeCover :: Int -> [Xag.Node] -> [Xag.Node]
+    optimizeCover :: Int -> [XAG.Node] -> [XAG.Node]
     optimizeCover maxCount optNodes
       | length optNodes <= maxCount = optNodes
       | IntSet.size criticalIds >= maxCount =
-          filter (\n -> IntSet.member (Xag.nodeId n) criticalIds) optNodes
+          filter (\n -> IntSet.member (XAG.nodeId n) criticalIds) optNodes
       -- do a second cover here just in case we orphaned some nodes along the way
-      | otherwise = Xag.cover criticalIds mostImportantNodes
+      | otherwise = XAG.cover criticalIds mostImportantNodes
       where
-        mostImportantNodes = filter (\n -> IntSet.member (Xag.nodeId n) toKeepIds) optNodes
+        mostImportantNodes = filter (\n -> IntSet.member (XAG.nodeId n) toKeepIds) optNodes
         toKeepIds = IntSet.union criticalIds (IntSet.fromList (take maxCount (map snd byImportance)))
         byImportance = sort (mapMaybe lookupImportance optNodes)
           where
             lookupImportance node =
-              let nId = Xag.nodeId node
+              let nId = XAG.nodeId node
                in fmap (\x -> (x, nId)) (IntMap.lookup nId importance)
         importance :: IntMap.IntMap Double
         importance =
@@ -86,11 +86,11 @@ canReduce reduceId allNodes =
             (IntMap.fromList (map (\nId -> (nId, 10.0)) (IntSet.toList criticalIds)))
             optNodes
 
-        distImportance :: IntMap.IntMap Double -> [Xag.Node] -> IntMap.IntMap Double
+        distImportance :: IntMap.IntMap Double -> [XAG.Node] -> IntMap.IntMap Double
         distImportance impSoFar [] = impSoFar
         distImportance impSoFar (node : revNodes)
-          | IntMap.member (Xag.nodeId node) impSoFar =
-              let f = distF (impSoFar IntMap.! Xag.nodeId node)
+          | IntMap.member (XAG.nodeId node) impSoFar =
+              let f = distF (impSoFar IntMap.! XAG.nodeId node)
                in distImportance (insertDeps f node impSoFar) revNodes
           | otherwise = distImportance impSoFar revNodes
           where
@@ -104,27 +104,27 @@ canReduce reduceId allNodes =
     intSetF xId (-1) theSet = IntSet.insert xId theSet
     intSetF xId yId theSet = IntSet.insert yId (IntSet.insert xId theSet)
 
-    insertDeps :: (Int -> Int -> a -> a) -> Xag.Node -> a -> a
-    insertDeps _ (Xag.Const _ _) idSet = idSet
-    insertDeps insertF (Xag.Not _ xId) idSet = insertF xId (-1) idSet
-    insertDeps insertF (Xag.Xor _ xId yId) idSet = insertF xId yId idSet
-    insertDeps insertF (Xag.And _ xId yId) idSet = insertF xId yId idSet
+    insertDeps :: (Int -> Int -> a -> a) -> XAG.Node -> a -> a
+    insertDeps _ (XAG.Const _ _) idSet = idSet
+    insertDeps insertF (XAG.Not _ xId) idSet = insertF xId (-1) idSet
+    insertDeps insertF (XAG.Xor _ xId yId) idSet = insertF xId yId idSet
+    insertDeps insertF (XAG.And _ xId yId) idSet = insertF xId yId idSet
 
-makeTseytin :: [Xag.Node] -> Formula Int
+makeTseytin :: [XAG.Node] -> Formula Int
 makeTseytin allNodes = All (map toClause allNodes)
   where
-    toClause (Xag.Const nId True) = Var nId :<->: Yes
-    toClause (Xag.Const nId False) = Var nId :<->: No
-    toClause (Xag.Not nId xId) = Var nId :<->: Not (Var xId)
-    toClause (Xag.Xor nId xId yId) = Var nId :<->: (Var xId :++: Var yId)
-    toClause (Xag.And nId xId yId) = Var nId :<->: (Var xId :&&: Var yId)
+    toClause (XAG.Const nId True) = Var nId :<->: Yes
+    toClause (XAG.Const nId False) = Var nId :<->: No
+    toClause (XAG.Not nId xId) = Var nId :<->: Not (Var xId)
+    toClause (XAG.Xor nId xId yId) = Var nId :<->: (Var xId :++: Var yId)
+    toClause (XAG.And nId xId yId) = Var nId :<->: (Var xId :&&: Var yId)
 
-findAndIds :: [Xag.Node] -> [Int]
+findAndIds :: [XAG.Node] -> [Int]
 findAndIds [] = []
-findAndIds ((Xag.And {Xag.nodeId = nId}) : found) = nId : findAndIds found
+findAndIds ((XAG.And {XAG.nodeId = nId}) : found) = nId : findAndIds found
 findAndIds (_ : found) = findAndIds found
 
-findReducibleNodes :: [Xag.Node] -> [Int]
+findReducibleNodes :: [XAG.Node] -> [Int]
 findReducibleNodes allNodes =
   allReducibleOf (findAndIds allNodes)
   where
@@ -134,16 +134,16 @@ findReducibleNodes allNodes =
         then tryId : allReducibleOf idsRemaining
         else allReducibleOf idsRemaining
 
-renumberNodes :: Int -> Int -> Int -> [Xag.Node] -> [Xag.Node]
+renumberNodes :: Int -> Int -> Int -> [XAG.Node] -> [XAG.Node]
 renumberNodes atId shiftByEq shiftByGt = renumberNodesAux
   where
     renumberNodesAux [] = []
     renumberNodesAux (node : nodes) = renumberOne node : renumberNodesAux nodes
 
-    renumberOne (Xag.Const nId value) = Xag.Const (mapId nId) value
-    renumberOne (Xag.Not nId xId) = Xag.Not (mapId nId) (mapId xId)
-    renumberOne (Xag.Xor nId xId yId) = Xag.Xor (mapId nId) (mapId xId) (mapId yId)
-    renumberOne (Xag.And nId xId yId) = Xag.And (mapId nId) (mapId xId) (mapId yId)
+    renumberOne (XAG.Const nId value) = XAG.Const (mapId nId) value
+    renumberOne (XAG.Not nId xId) = XAG.Not (mapId nId) (mapId xId)
+    renumberOne (XAG.Xor nId xId yId) = XAG.Xor (mapId nId) (mapId xId) (mapId yId)
+    renumberOne (XAG.And nId xId yId) = XAG.And (mapId nId) (mapId xId) (mapId yId)
 
     mapId = renumberId atId shiftByEq shiftByGt
 
@@ -156,35 +156,35 @@ renumberId atId shiftByEq shiftByGt nId
   | nId == atId = nId + shiftByEq
   | otherwise = nId + shiftByGt
 
-splitNodes :: Int -> [Xag.Node] -> ([Xag.Node], [Xag.Node])
+splitNodes :: Int -> [XAG.Node] -> ([XAG.Node], [XAG.Node])
 splitNodes atId allNodes = (take atIndex allNodes, rightNodes)
   where
     (atIndex, rightNodes) = findSplit 0 allNodes
     findSplit index [] = (index, [])
     findSplit index (node : nodes)
-      | Xag.nodeId node < atId = findSplit (index + 1) nodes
+      | XAG.nodeId node < atId = findSplit (index + 1) nodes
       | otherwise = (index, node : nodes)
 
--- spliceNodes :: Int -> Int -> [Xag.Node] -> Int -> Int -> [Xag.Node] -> [Xag.Node]
+-- spliceNodes :: Int -> Int -> [XAG.Node] -> Int -> Int -> [XAG.Node] -> [XAG.Node]
 -- spliceNodes fromId toId insNodes shiftByEq shiftByGt allNodes =
 --   leftNodes ++ insNodes ++ renumberNodes toId shiftByEq shiftByGt rightNodes
 --   where
 --     (_, rightNodes) = splitNodes toId notLeftNodes
 --     (leftNodes, notLeftNodes) = splitNodes fromId allNodes
 
-findReducible :: Xag.Graph -> [Int]
-findReducible (Xag.Graph allNodes _ _) = findReducibleNodes allNodes
+findReducible :: XAG.Graph -> [Int]
+findReducible (XAG.Graph allNodes _ _) = findReducibleNodes allNodes
 
-reduceAndToNotXor :: Int -> Xag.Graph -> Maybe Xag.Graph
-reduceAndToNotXor andId (Xag.Graph allNodes inOrd outOrd) =
+reduceAndToNotXor :: Int -> XAG.Graph -> Maybe XAG.Graph
+reduceAndToNotXor andId (XAG.Graph allNodes inOrd outOrd) =
   case splitNodes andId allNodes of
-    (leftNodes, Xag.And _ xId yId : rightNodes) -> Just (updateGraph leftNodes xId yId rightNodes)
+    (leftNodes, XAG.And _ xId yId : rightNodes) -> Just (updateGraph leftNodes xId yId rightNodes)
     (_, _) -> Nothing
   where
     updateGraph leftNodes xId yId rightNodes =
-      Xag.Graph updatedNodes inOrd (renumberIds andId 1 1 outOrd)
+      XAG.Graph updatedNodes inOrd (renumberIds andId 1 1 outOrd)
       where
         updatedNodes =
           leftNodes
-            ++ [Xag.Xor andId xId yId, Xag.Not (andId + 1) andId]
+            ++ [XAG.Xor andId xId yId, XAG.Not (andId + 1) andId]
             ++ renumberNodes andId 1 1 rightNodes

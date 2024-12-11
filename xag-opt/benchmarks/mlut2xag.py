@@ -477,9 +477,9 @@ if __name__ == "__main__":
         #     .title()
         #     .translate({ord(" "): None})
         # )
-        # print(f"module Xag.Benchmarks.{id_str} where")
+        # print(f"module XAG.Benchmarks.{id_str} where")
         # print()
-        # print("import Xag.Graph")
+        # print("import XAG.Graph")
         # print()
 
         print("BenchmarkInput")

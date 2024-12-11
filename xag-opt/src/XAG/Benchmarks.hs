@@ -1,6 +1,6 @@
-module Xag.Benchmarks where
+module XAG.Benchmarks where
 
-import Xag.Graph
+import XAG.Graph
 
 data BenchmarkInput = BenchmarkInput {xag :: Graph, testVectors :: [([Bool], [Bool])]}
   deriving (Read, Show)
