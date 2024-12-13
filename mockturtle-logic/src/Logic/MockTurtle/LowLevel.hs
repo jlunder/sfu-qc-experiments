@@ -4,53 +4,42 @@ module Logic.MockTurtle.LowLevel where
 
 import Control.Exception (mask_)
 import Foreign
-import Foreign.C.Types
 
-data Example
+data XAGWrap
 
-data ExampleIterator
+data XAGBuilderWrap
 
-foreign import ccall unsafe "example_create"
-  exampleCreate ::
-    IO (Ptr Example)
+foreign import ccall unsafe "xag_alloc"
+  allocXAGWrap :: IO (Ptr XAGWrap)
 
-foreign import ccall unsafe "&example_destroy"
-  exampleDestroy ::
-    FunPtr (Ptr Example -> IO ())
+foreign import ccall unsafe "&xag_free"
+  freeXAGWrap :: FunPtr (Ptr XAGWrap -> IO ())
 
-mkExample :: IO (ForeignPtr Example)
-mkExample =
-  mask_ $ newForeignPtr exampleDestroy =<< exampleCreate
+allocForeignXAGWrap :: IO (ForeignPtr XAGWrap)
+allocForeignXAGWrap = mask_ $ newForeignPtr freeXAGWrap =<< allocXAGWrap
 
-foreign import ccall unsafe "ffi_iterator_create"
-  ffiIteratorCreate ::
-    Ptr Example -> IO (Ptr ExampleIterator)
+foreign import ccall unsafe "xag_builder_alloc"
+  allocXAGBuilderWrap :: Ptr XAGWrap -> IO (Ptr XAGBuilderWrap)
 
-foreign import ccall unsafe "&ffi_iterator_destroy"
-  ffiIteratorDestroy ::
-    FunPtr (Ptr ExampleIterator -> IO ())
+foreign import ccall unsafe "&xag_builder_free" freeXAGBuilderWrap :: FunPtr (Ptr XAGBuilderWrap -> IO ())
 
-foreign import ccall unsafe "ffi_iterator_has_next"
-  ffiIteratorHasNext ::
-    Ptr ExampleIterator -> IO CBool
+allocForeignXAGBuilderWrap :: Ptr XAGWrap -> IO (ForeignPtr XAGBuilderWrap)
+allocForeignXAGBuilderWrap xagP = mask_ $ newForeignPtr freeXAGBuilderWrap =<< allocXAGBuilderWrap xagP
 
-foreign import ccall unsafe "ffi_iterator_next"
-  ffiIteratorNext ::
-    Ptr ExampleIterator -> IO CInt
+foreign import ccall unsafe "xag_builder_create_pi"
+  xagBuilderWrapCreatePI :: Ptr XAGBuilderWrap -> Int -> IO ()
 
-mkExampleIterator :: Ptr Example -> IO (ForeignPtr ExampleIterator)
-mkExampleIterator ptr =
-  mask_ $ newForeignPtr ffiIteratorDestroy =<< ffiIteratorCreate ptr
+foreign import ccall unsafe "xag_builder_create_const"
+  xagBuilderWrapCreateConst :: Ptr XAGBuilderWrap -> Int -> Bool -> IO ()
 
--- Helper function for looping over the data and collecting the results on
--- the Haskell side.
-collectValues :: Ptr ExampleIterator -> IO [CInt]
-collectValues = go []
-  where
-    go acc iterator = do
-      CBool hasNext <- ffiIteratorHasNext iterator
-      if hasNext == 1
-        then do
-          value <- ffiIteratorNext iterator
-          go (value : acc) iterator
-        else pure acc
+foreign import ccall unsafe "xag_builder_create_not"
+  xagBuilderWrapCreateNot :: Ptr XAGBuilderWrap -> Int -> Int -> IO ()
+
+foreign import ccall unsafe "xag_builder_create_xor"
+  xagBuilderWrapCreateXor :: Ptr XAGBuilderWrap -> Int -> Int -> Int -> IO ()
+
+foreign import ccall unsafe "xag_builder_create_and"
+  xagBuilderWrapCreateAnd :: Ptr XAGBuilderWrap -> Int -> Int -> Int -> IO ()
+
+foreign import ccall unsafe "xag_builder_create_po"
+  xagBuilderWrapCreatePO :: Ptr XAGBuilderWrap -> Int -> IO ()
