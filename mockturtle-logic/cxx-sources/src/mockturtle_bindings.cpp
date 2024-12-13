@@ -133,9 +133,21 @@ void xag_builder_create_po(xag_builder_wrap_t *builder_p, int32_t x_id) {
   builder_p->xag.create_po(x_sig);
 }
 
-xag_reader_wrap_t *xag_reader_alloc(xag_wrap_t *xag_p) { return nullptr; }
+xag_reader_wrap_t *xag_reader_alloc(xag_wrap_t *xag_p) {
+  assert(xag_p);
+  assert(xag_p->magic == xag_wrap_t_magic);
 
-void xag_reader_free(xag_reader_wrap_t *reader_p) {}
+  return new xag_reader_wrap_t{.xag = xag_p->xag,
+                               .magic = xag_reader_wrap_t_magic};
+}
+
+void xag_reader_free(xag_reader_wrap_t *reader_p) {
+  assert(reader_p);
+  assert(reader_p->magic == xag_reader_wrap_t_magic);
+
+  reader_p->magic = 0;
+  delete reader_p;
+}
 
 // #include <lorina/aiger.hpp>
 
