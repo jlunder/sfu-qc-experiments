@@ -1,3 +1,7 @@
+#include <mockturtle/algorithms/cleanup.hpp>
+#include <mockturtle/algorithms/xag_algebraic_rewriting.hpp>
+#include <mockturtle/algorithms/xag_resub.hpp>
+#include <mockturtle/algorithms/xag_resub_withDC.hpp>
 #include <mockturtle/mockturtle.hpp>
 #include <mockturtle/networks/xag.hpp>
 
@@ -65,6 +69,7 @@ foreach node n:
 extern "C" {
 xag_wrap_t *xag_alloc();
 void xag_free(xag_wrap_t *xag_p);
+void xag_optimize(xag_wrap_t *xag_p);
 xag_builder_wrap_t *xag_builder_alloc(xag_wrap_t *xag_p);
 void xag_builder_free(xag_builder_wrap_t *builder_p);
 void xag_builder_create_pi(xag_builder_wrap_t *builder_p, int32_t node_id);
@@ -101,48 +106,25 @@ void xag_free(xag_wrap_t *xag_p) {
   delete xag_p;
 }
 
-// #include <lorina/aiger.hpp>
+void xag_optimize(xag_wrap_t *xag_p) {
+  using namespace mockturtle;
 
-// int main() {
-//   using namespace mockturtle;
+  assert(xag_p);
+  assert(xag_p->magic == xag_wrap_t_magic);
 
-//   experiment<std::string, uint32_t, uint32_t, float, bool> exp(
-//       "xag_resubstitution", "benchmark", "size_before", "size_after",
-//       "runtime", "equivalent");
+  resubstitution_params ps;
+  resubstitution_stats st;
+  ps.max_pis = 8u;
+  ps.max_inserts = 1u;
+  ps.progress = false;
 
-//   for (auto const &benchmark : epfl_benchmarks()) {
-//     fmt::print("[i] processing {}\n", benchmark);
+  depth_view depth_xag{xag_p->xag};
+  fanout_view fanout_xag{depth_xag};
 
-//     xag_network xag;
-//     if (lorina::read_aiger(benchmark_path(benchmark), aiger_reader(xag)) !=
-//         lorina::return_code::success) {
-//       continue;
-//     }
-
-//     resubstitution_params ps;
-//     resubstitution_stats st;
-//     ps.max_pis = 8u;
-//     ps.max_inserts = 1u;
-//     ps.progress = false;
-
-//     depth_view depth_xag{xag};
-//     fanout_view fanout_xag{depth_xag};
-
-//     uint32_t const size_before = fanout_xag.num_gates();
-//     xag_resubstitution(fanout_xag, ps, &st);
-//     xag = cleanup_dangling(xag);
-
-//     bool const cec = benchmark == "hyp" ? true : abc_cec(fanout_xag,
-//     benchmark); exp(benchmark, size_before, xag.num_gates(),
-//     to_seconds(st.time_total),
-//         cec);
-//   }
-
-//   exp.save();
-//   exp.table();
-
-//   return 0;
-// }
+  uint32_t const size_before = fanout_xag.num_gates();
+  xag_resubstitution(fanout_xag, ps, &st);
+  xag_p->xag = cleanup_dangling(xag_p->xag);
+}
 
 xag_builder_wrap_t *xag_builder_alloc(xag_wrap_t *xag_p) {
   assert(xag_p);

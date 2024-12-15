@@ -18,6 +18,9 @@ foreign import ccall unsafe "xag_alloc"
 foreign import ccall unsafe "&xag_free"
   freeXAGWrap :: FunPtr (Ptr XAGWrap -> IO ())
 
+foreign import ccall unsafe "xag_optimize"
+  xagOptimize :: Ptr XAGWrap -> IO ()
+
 allocForeignXAGWrap :: IO (ForeignPtr XAGWrap)
 allocForeignXAGWrap = mask_ $ newForeignPtr freeXAGWrap =<< allocXAGWrap
 

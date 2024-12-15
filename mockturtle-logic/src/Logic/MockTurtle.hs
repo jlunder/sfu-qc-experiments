@@ -34,6 +34,7 @@ optimize g =
           mtxagFP
           ( \mtxag -> do
               buildMTXAG g mtxag
+              xagOptimize mtxag
               readMTXAG mtxag
           )
     )
