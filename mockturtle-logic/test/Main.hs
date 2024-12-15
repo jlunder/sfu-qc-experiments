@@ -22,6 +22,6 @@ main :: IO ()
 main = do
   print reducible1
   putStrLn "Optimizing graph"
-  opt <- optimize reducible1
+  let opt = optimize reducible1
   print opt
   return ()

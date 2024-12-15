@@ -133,15 +133,15 @@ public:
       return signal( data ^ 1 );
     }
 
-    signal operator+() const
-    {
-      return { index, 0 };
-    }
+    // signal operator+() const
+    // {
+    //   return { index, 0 };
+    // }
 
-    signal operator-() const
-    {
-      return { index, 1 };
-    }
+    // signal operator-() const
+    // {
+    //   return { index, 1 };
+    // }
 
     signal operator^( bool complement ) const
     {

@@ -1,6 +1,7 @@
 module Logic.MockTurtle (XAG.Graph (..), optimize) where
 
-import Foreign (Ptr, withForeignPtr)
+import Foreign (Ptr, peekArray, withForeignPtr, fromBool)
+import Foreign.Marshal (allocaArray)
 import GHC.IO (unsafePerformIO)
 import Logic.MockTurtle.LowLevel
 import Logic.MockTurtle.XAG qualified as XAG
@@ -53,20 +54,67 @@ buildMTXAG g mtxag = do
 
     buildNode :: Ptr XAGBuilderWrap -> XAG.Node -> IO ()
     buildNode b (XAG.Const nID v) =
-      xagBuilderWrapCreateConst b (fromIntegral nID) v
+      xagBuilderWrapCreateConst b (fromIntegral nID) (fromBool v)
     buildNode b (XAG.Not nID xID) =
-      xagBuilderWrapCreateNot b (fromIntegral nID) xID
+      xagBuilderWrapCreateNot b (fromIntegral nID) (fromIntegral xID)
     buildNode b (XAG.Xor nID xID yID) =
-      xagBuilderWrapCreateXor b (fromIntegral nID) xID yID
+      xagBuilderWrapCreateXor b (fromIntegral nID) (fromIntegral xID) (fromIntegral yID)
     buildNode b (XAG.And nID xID yID) =
-      xagBuilderWrapCreateAnd b (fromIntegral nID) xID yID
+      xagBuilderWrapCreateAnd b (fromIntegral nID) (fromIntegral xID) (fromIntegral yID)
 
     buildInput :: Ptr XAGBuilderWrap -> Int -> IO ()
     buildInput b nID = xagBuilderWrapCreatePI b (fromIntegral nID)
 
 readMTXAG :: Ptr XAGWrap -> IO XAG.Graph
 readMTXAG mtxag = do
-  return $ XAG.Graph nodes inIDs outIDs
-  where nodes = []
-        inIDs = []
-        outIDs = []
+  reader <- allocForeignXAGReaderWrap mtxag
+  (pis, nodes, pos) <- withForeignPtr reader doRead
+  return $ XAG.Graph nodes pis pos
+  where
+    doRead :: Ptr XAGReaderWrap -> IO ([Int], [XAG.Node], [Int])
+    doRead r = do
+      pis <- readPIs r
+      gates <- allocaArray 3 (readNodes r)
+      pos <- readPOs r
+      return (pis, gates, pos)
+
+    readPIs r = do
+      piID <- xagReaderReadNextPI r
+      if piID < 0
+        then return []
+        else
+          ( do
+              remain <- readPIs r
+              return $ fromIntegral piID : remain
+          )
+
+    readNodes r buf = do
+      nID <- xagReaderReadNextNode r buf
+      if nID < 0
+        then return []
+        else
+          ( do
+              vals <- peekArray 3 buf
+              remain <- readNodes r buf
+              return $ nodeFromBuf (fromIntegral nID) (head vals) (map fromIntegral (tail vals)) : remain
+          )
+      where
+        nodeFromBuf nID t _
+          | t == xagReaderNodeTypeConstFalse = XAG.Const nID False
+          | t == xagReaderNodeTypeConstTrue = XAG.Const nID True
+        nodeFromBuf nID t (xID : _)
+          | t == xagReaderNodeTypeNot = XAG.Not nID xID
+        nodeFromBuf nID t (xID : yID : _)
+          | t == xagReaderNodeTypeXor = XAG.Xor nID xID yID
+          | t == xagReaderNodeTypeAnd = XAG.And nID xID yID
+        nodeFromBuf _ _ _ = undefined
+
+    readPOs r = do
+      poID <- xagReaderReadNextPO r
+      if poID < 0
+        then return []
+        else
+          ( do
+              remain <- readPOs r
+              return $ fromIntegral poID : remain
+          )
