@@ -2,6 +2,10 @@ module Logic.MockTurtle.XAG where
 
 import GHC.Generics (Generic)
 
+-- Nodes are in topological order in the graph:
+-- for each node, nodeID > xIn, nodeID > yIn
+-- It should be possible to evaluate the whole graph by iterating nodes in
+-- order, maintaining a map of previously computed nodes at each step
 data Graph = Graph {nodes :: [Node], inputIDs :: [Int], outputIDs :: [Int]}
   deriving (Eq, Generic, Ord, Read, Show)
 
@@ -12,6 +16,7 @@ data Node
   | And {nodeID :: !Int, xIn :: !Int, yIn :: !Int}
   deriving (Eq, Generic, Read, Show)
 
+-- This compare fully orders nodes, but mostly we only care about the nodeID
 instance Ord Node where
   compare :: Node -> Node -> Ordering
   compare x y
