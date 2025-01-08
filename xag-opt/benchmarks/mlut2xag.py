@@ -487,7 +487,7 @@ if __name__ == "__main__":
         xag_nodes, output_order, gen_index = gen_xag(gates, input_gates, output_gates)
         print("  { xag =")
         print("      Graph")
-        print("        { xagNodes =")
+        print("        { nodes =")
         xag_array_str = ",\n              ".join((n.xagb() for n in xag_nodes))
         print(f"            [ {xag_array_str}\n            ],")
         print()

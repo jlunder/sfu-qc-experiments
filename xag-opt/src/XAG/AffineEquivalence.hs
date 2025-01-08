@@ -1,4 +1,3 @@
 module XAG.AffineEquivalence where
 
---import XAG.Graph
-
+-- import XAG.Graph

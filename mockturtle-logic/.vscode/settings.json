@@ -77,5 +77,6 @@
         "variant": "cpp",
         "__nullptr": "cpp",
         "__split_buffer": "cpp"
-    }
+    },
+    "cmake.sourceDirectory": "/home/jlunder/workspaces/sfu-qc/repos/sfu-qc-experiments/mockturtle-logic/cxx-sources/mockturtle/test"
 }

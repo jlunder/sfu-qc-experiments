@@ -1,7 +1,7 @@
 BenchmarkInput
   { xag =
       Graph
-        { xagNodes =
+        { nodes =
             [ Const {nodeID = 0, value = False},
               Const {nodeID = 1, value = True},
               And {nodeID = 137, xIn = 96, yIn = 131},

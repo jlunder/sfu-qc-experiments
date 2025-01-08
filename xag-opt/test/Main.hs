@@ -69,10 +69,10 @@ doQuickCheckTests = do
   putStrLn "doQuickCheckTests"
   hFlush stdout
 
-  QC.quickCheck (prop_valid . XAG.xagNodes)
-  QC.quickCheck (prop_freeVarsNotInOutputs . XAG.xagNodes)
-  QC.quickCheck (prop_coverIsComplete . XAG.xagNodes)
-  QC.quickCheck (prop_coverIsMinimal . XAG.xagNodes)
+  QC.quickCheck (prop_valid . XAG.nodes)
+  QC.quickCheck (prop_freeVarsNotInOutputs . XAG.nodes)
+  QC.quickCheck (prop_coverIsComplete . XAG.nodes)
+  QC.quickCheck (prop_coverIsMinimal . XAG.nodes)
   -- QC.quickCheck prop_normalizePreservesFreeVariables
   return ()
 
@@ -100,7 +100,7 @@ doVerifyTests = do
 
 verify :: String -> XAG.Benchmarks.BenchmarkInput -> IO ()
 verify name bench = do
-  let g@(XAG.Graph {XAG.xagNodes = nodes}) = xag bench
+  let g@(XAG.Graph {XAG.nodes = nodes}) = xag bench
   putStrLn $
     "Validating "
       ++ name
@@ -129,9 +129,9 @@ doSimpleReduction = do
   putStrLn "doSimpleReduction"
   hFlush stdout
 
-  putStrLn $ "cover: " ++ show (XAG.cover (IntSet.singleton 10) (XAG.xagNodes reducible1))
-  putStrLn $ "free: " ++ show (XAG.freeVariables (XAG.xagNodes reducible1))
-  putStrLn $ "reduce: " ++ show (XAG.canReduce 8 (XAG.xagNodes reducible1))
+  putStrLn $ "cover: " ++ show (XAG.cover (IntSet.singleton 10) (XAG.nodes reducible1))
+  putStrLn $ "free: " ++ show (XAG.freeVariables (XAG.nodes reducible1))
+  putStrLn $ "reduce: " ++ show (XAG.canReduce 8 (XAG.nodes reducible1))
   let reductions = XAG.findReducible reducible1
   putStrLn $ "findReducible: " ++ show reductions
   hFlush stdout

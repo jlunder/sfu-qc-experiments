@@ -14,8 +14,8 @@ import Data.IntMap.Strict qualified as IntMap
 import Data.IntSet qualified as IntSet
 import Data.List (sort)
 import Data.Maybe (isNothing, mapMaybe)
-import XAG.Graph qualified as XAG
 import SAT.MiniSat
+import XAG.Graph qualified as XAG
 
 sdcodcOptimize :: XAG.Graph -> XAG.Graph
 sdcodcOptimize g = foldr reduceAndToNotXor g (findReducible g)
