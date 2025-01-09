@@ -11,7 +11,9 @@ import Test.QuickCheck qualified as QC
 import XAG.Benchmarks (BenchmarkInput (..))
 import XAG.Benchmarks qualified
 import XAG.Graph qualified as XAG
+import XAG.MinMultSat qualified as XAG
 import XAG.SDCODC qualified as XAG
+
 -- import XAG.Simplify qualified as XAG
 
 -- import XAG.Optimize
@@ -215,19 +217,43 @@ doBenchReduction name benchReader = do
     (XAG.Benchmarks.BenchmarkInput reduced (XAG.Benchmarks.testVectors bench))
   hFlush stdout
 
+doSatSynthesis :: IO ()
+doSatSynthesis = do
+  putStrLn "doSatSynthesis"
+  hFlush stdout
+
+  putStrLn "synthesizing a + b, b + c"
+  hFlush stdout
+  let tt =
+        [ ([False, False, False], [False, False]),
+          ([False, False, True], [False, True]),
+          ([False, True, False], [True, True]),
+          ([False, True, True], [True, False]),
+          ([True, False, False], [True, False]),
+          ([True, False, True], [True, True]),
+          ([True, True, False], [False, True]),
+          ([True, True, True], [False, False])
+        ]
+  let g = XAG.synthesizeFromTruthTable 3 2 tt
+  putStrLn $ "synthesizeFromTruthTable tt: " ++ show g
+  hFlush stdout
+
 main :: IO ()
 main = do
   when False doQuickCheckTests
   when False doVerifyTests
   when False doSimpleReduction
-  when True $ doBenchReduction "adder" XAG.Benchmarks.adder
-  when True $ doBenchReduction "bar" XAG.Benchmarks.bar
-  when True $ doBenchReduction "div" XAG.Benchmarks.div
+
+  when False $ doBenchReduction "adder" XAG.Benchmarks.adder
+  when False $ doBenchReduction "bar" XAG.Benchmarks.bar
+  when False $ doBenchReduction "div" XAG.Benchmarks.div
   -- hyp is just... really really big. It's probably a great stress test but I don't want to constantly run it
   when False $ doBenchReduction "hyp" XAG.Benchmarks.hyp
-  when True $ doBenchReduction "log2" XAG.Benchmarks.log2
-  when True $ doBenchReduction "max" XAG.Benchmarks.max
-  when True $ doBenchReduction "multiplier" XAG.Benchmarks.multiplier
-  when True $ doBenchReduction "sin" XAG.Benchmarks.sin
-  when True $ doBenchReduction "sqrt" XAG.Benchmarks.sqrt
-  when True $ doBenchReduction "square" XAG.Benchmarks.square
+  when False $ doBenchReduction "log2" XAG.Benchmarks.log2
+  when False $ doBenchReduction "max" XAG.Benchmarks.max
+  when False $ doBenchReduction "multiplier" XAG.Benchmarks.multiplier
+  when False $ doBenchReduction "sin" XAG.Benchmarks.sin
+  when False $ doBenchReduction "sqrt" XAG.Benchmarks.sqrt
+  when False $ doBenchReduction "square" XAG.Benchmarks.square
+
+  when True doSatSynthesis

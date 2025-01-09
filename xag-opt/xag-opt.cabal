@@ -63,6 +63,7 @@ library
     XAG.AffineEquivalence
     XAG.Benchmarks
     XAG.Graph
+    XAG.MinMultSat
     XAG.SDCODC
     XAG.Simplify
 
@@ -77,6 +78,7 @@ library
     , base            ^>=4.17.2.1
     , containers      ^>=0.6
     , minisat-solver  ^>=0.1
+    , mtl             ^>=2.2
     , QuickCheck      ^>=2.15
 
   -- Directories containing source files.
@@ -135,7 +137,8 @@ test-suite xag-opt-test
 
   -- Test dependencies.
   build-depends:
-    , base        ^>=4.17.2.1
-    , containers  ^>=0.6
-    , QuickCheck  ^>=2.15
+    , base            ^>=4.17.2.1
+    , containers      ^>=0.6
+    , minisat-solver  ^>=0.1
+    , QuickCheck      ^>=2.15
     , xag-opt
