@@ -13,6 +13,7 @@ import XAG.Benchmarks qualified
 import XAG.Graph qualified as XAG
 import XAG.MinMultSat qualified as XAG
 import XAG.SDCODC qualified as XAG
+import Data.Maybe (fromJust)
 
 -- import XAG.Simplify qualified as XAG
 
@@ -224,7 +225,7 @@ doSatSynthesis = do
 
   putStrLn "synthesizing a + b, b + c"
   hFlush stdout
-  let tt =
+  let ab_bc_tt =
         [ ([False, False, False], [False, False]),
           ([False, False, True], [False, True]),
           ([False, True, False], [True, True]),
@@ -234,8 +235,24 @@ doSatSynthesis = do
           ([True, True, False], [False, True]),
           ([True, True, True], [False, False])
         ]
-  let g = XAG.synthesizeFromTruthTable 3 2 tt
-  putStrLn $ "synthesizeFromTruthTable tt: " ++ show g
+  let g1 = XAG.synthesizeFromTruthTable 3 2 ab_bc_tt
+  putStrLn $ "synthesizeFromTruthTable ab_bc_tt: " ++ show g1
+  mapM_ putStrLn ["  " ++ show inputs ++ ": " ++ show (XAG.eval (fromJust g1) (inputs)) ++ ", expect " ++ show  outputs | (inputs, outputs) <- ab_bc_tt]
+  hFlush stdout
+
+  let ab_maj_tt =
+        [ ([False, False, False], [False, False]),
+          ([False, False, True], [False, False]),
+          ([False, True, False], [True, False]),
+          ([False, True, True], [True, True]),
+          ([True, False, False], [True, False]),
+          ([True, False, True], [True, True]),
+          ([True, True, False], [False, True]),
+          ([True, True, True], [False, True])
+        ]
+  let g2 = XAG.synthesizeFromTruthTable 3 2 ab_maj_tt
+  putStrLn $ "synthesizeFromTruthTable ab_maj_tt: " ++ show g2
+  mapM_ putStrLn ["  " ++ show inputs ++ ": " ++ show (XAG.eval (fromJust g2) (inputs)) ++ ", expect " ++ show  outputs | (inputs, outputs) <- ab_maj_tt]
   hFlush stdout
 
 main :: IO ()
