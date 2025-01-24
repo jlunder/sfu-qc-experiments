@@ -1,7 +1,4 @@
-python3 -m venv .venv
-source .venv/bin/activate
-
-qiskit-aer-gpu
 jupyter
-qiskit[visualization]
 qiskit
+qiskit[visualization]
+qiskit-aer-gpu
