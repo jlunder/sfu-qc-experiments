@@ -12,10 +12,8 @@ where
 
 import Control.Monad (foldM, replicateM)
 import Control.Monad.State.Strict (State, gets, modify, runState)
-import Data.List (intercalate)
 import Data.Map (Map)
 import Data.Map qualified as Map
-import Debug.Trace (trace)
 import SAT.MiniSat
 import XAG.Graph qualified as XAG
 
