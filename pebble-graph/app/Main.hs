@@ -13,7 +13,6 @@ import Data.IntMap.Strict (IntMap, (!))
 import Data.IntMap.Strict qualified as IntMap
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
-import Math.NumberTheory.Logarithms (intLog2')
 
 data Gate
   = CNot Int Int Int
@@ -25,17 +24,15 @@ data PebblingGraph
   { pebblingSize :: Int,
     pebblingInputSize :: Int,
     pebblingOutputSize :: Int,
+    -- Dependencies are one-hot bits -> bits
     pebblingDependencies :: IntMap Int,
+    -- GateIDs are one-hot bits -> gate ID
+    pebblingGateIDs :: IntMap Int,
     pebblingComputation :: [Gate],
     pebblingInputs :: [Int],
     pebblingOutputBits :: IntMap Int
   }
   deriving (Eq, Show)
-
--- instance WeightedGraph PebblingGraph where
---   type VertexID PebblingGraph = Int
---   type EdgeID PebblingGraph = (Int, Int)
---   type EdgeWeight PebblingGraph = Int
 
 newtype PebblingVertex = V Int deriving (Eq, Ord, Show)
 
@@ -44,30 +41,16 @@ newtype PebblingEdge = E (Int, Int) deriving (Eq, Ord, Show)
 index :: PebblingVertex -> Int
 index (V idx) = idx
 
-hasEdge :: PebblingGraph -> PebblingVertex -> PebblingVertex -> Bool
-hasEdge g u v =
-  (popCount flipped == 1)
-    && ((index v .&. depBits) == depBits)
-  where
-    depBits = pebblingDependencies g ! i
-    i = intLog2' flipped
-    flipped = index u `xor` index v
-
 edgesFrom :: PebblingGraph -> PebblingVertex -> [PebblingEdge]
 edgesFrom g v =
-  [ E (index v, index v `xor` bit i)
-    | i <- [0 .. pebblingSize g - 1],
-      let depBits = pebblingDependencies g ! bit i
+  [ E (index v, index v `xor` b)
+    | b <- map bit [0 .. pebblingSize g - 1],
+      let depBits = pebblingDependencies g ! b
        in (index v .&. depBits) == depBits
   ]
 
 edgesTo :: PebblingGraph -> PebblingVertex -> [PebblingEdge]
-edgesTo g v =
-  [ E (index v `xor` bit i, index v)
-    | i <- [0 .. pebblingSize g - 1],
-      let depBits = pebblingDependencies g ! bit i
-       in (index v .&. depBits) == depBits
-  ]
+edgesTo g v = [E (b, a) | E (a, b) <- edgesFrom g v]
 
 vertexFrom :: PebblingGraph -> PebblingEdge -> PebblingVertex
 vertexFrom _ (E (a, _)) = V a
@@ -88,6 +71,8 @@ pebblingFromGates gates ins outs =
       pebblingInputSize = length ins,
       pebblingOutputSize = IntMap.size outputBits,
       pebblingDependencies = deps,
+      pebblingGateIDs =
+        IntMap.fromList [(b, c) | (c, b) <- IntMap.toList gateBits, b /= 0],
       pebblingComputation = gates,
       pebblingInputs = ins,
       pebblingOutputBits = outputBits
@@ -95,18 +80,25 @@ pebblingFromGates gates ins outs =
   where
     outputBits = IntMap.fromList [(tgt, gateBits ! tgt) | tgt <- outs]
 
+    -- Maps a pebbling bit -> the dependency bits that need to be set for it
+    -- to be pebbled or unpebbled
     deps =
       assert
+        -- assert all gate IDs have bits mappings, and are all distinct
         ( all (`IntMap.member` gateBits) (concatMap depIDs gates)
             && (length ins + length gates) == IntMap.size gateBits
         )
         $ IntMap.fromList
           [ ( gateBits ! targetID g,
-              foldl' (flip (xor . (gateBits !))) 0 (depIDs g)
+              foldl' (.|.) 0 (map (gateBits !) (depIDs g))
             )
             | g <- gates
           ]
 
+    -- Maps gate ID -> pebbling bits; for inputs these are 0 because pebbles
+    -- are only for computations, not inputs
+    -- Specifically, each mapped bit here is either in the form (bit i) or 0,
+    -- so (hammingWeight (gateBits k)) is always either 1 or 0
     gateBits =
       IntMap.fromList
         ( map (\inID -> (inID, 0)) ins
@@ -119,38 +111,9 @@ pebblingFromGates gates ins outs =
     targetID (CNot _ _ tgt) = tgt
     targetID (Tof _ _ tgt) = tgt
 
--- aStarMinimaxShortestPath :: PebblingGraph -> PebblingVertex -> PebblingVertex -> (PebblingEdge -> Int) -> (PebblingVertex -> Int) -> Maybe [PebblingVertex]
--- aStarMinimaxShortestPath graph initV goalV cost heuristic = undefined
---   where
---     initBottleneck :: Map (Int, Int) Int
---     initBottleneck =
---       Map.fromList
---         [ ((u, v), edgeWeight graph (findEdge' graph u v))
---           | u <- allVertices graph,
---             v <- allVertices graph,
---             hasEdge graph u v
---         ]
---     initPrev :: Map (Int, Int) Int
---     initPrev =
---       Map.fromList
---         [ ((u, v), u)
---           | u <- allVertices graph,
---             v <- allVertices graph
---         ]
-
---     vertices = allVertices graph
-
---     (minimax', prev') = foldl' (\w wState->
---                               foldl' (\u uState->
---                                           foldl' (\v vState@(minimax, prev)->
---                                             if Map.member (u, v) minimax && minimax Map.! (u, v) >
---                                             ) uState vertices
---                                 ) wState vertices
---                             ) (initBottleneck, initPrev) vertices
-
 floydWarshallMinimaxShortestPath :: PebblingGraph -> PebblingVertex -> PebblingVertex -> (PebblingEdge -> Int) -> (PebblingEdge -> Int) -> Maybe ([PebblingVertex], Int)
 floydWarshallMinimaxShortestPath graph initV goalV _ weight =
-  walkFinPrevToInit goalV >>= (\l -> Just (l, finBottleneck Map.! (initV, goalV)))
+  walkFinPrevToInit goalV >>= (\l -> Just (reverse l, finBottleneck Map.! (initV, goalV)))
   where
     walkFinPrevToInit :: PebblingVertex -> Maybe [PebblingVertex]
     walkFinPrevToInit v
@@ -181,8 +144,8 @@ floydWarshallMinimaxShortestPath graph initV goalV _ weight =
                           || Map.notMember (w, v) bottleneck
                           then vState
                           else
-                            let uwvBottleneck = min (bottleneck Map.! (u, w)) (bottleneck Map.! (w, v))
-                             in if Map.notMember (u, v) bottleneck || (bottleneck Map.! (u, v) < uwvBottleneck)
+                            let uwvBottleneck = max (bottleneck Map.! (u, w)) (bottleneck Map.! (w, v))
+                             in if Map.notMember (u, v) bottleneck || (uwvBottleneck < bottleneck Map.! (u, v))
                                   then
                                     ( Map.insert (u, v) uwvBottleneck bottleneck,
                                       Map.insert (u, v) (prev Map.! (w, v)) prev
@@ -198,26 +161,72 @@ floydWarshallMinimaxShortestPath graph initV goalV _ weight =
         (initBottleneck, initPrev)
         vertices
 
-main :: IO ()
-main = do
-  let g = pebblingFromGates [Tof 10 11 12, CNot 10 12 13] [10, 11] [13]
-  print g
+prettyVertex :: PebblingGraph -> PebblingVertex -> String
+prettyVertex g (V idx) =
+  "(" ++ show idx ++ ") " ++ show [c | (b, c) <- gateIDs, (idx .&. b) == b]
+  where
+    gateIDs = IntMap.toList (pebblingGateIDs g)
+
+prettyEdge :: PebblingGraph -> PebblingEdge -> String
+prettyEdge g (E (fromIdx, toIdx)) =
+  ("(" ++ show fromIdx ++ " -> " ++ show toIdx ++ ") ")
+    ++ (plusMinus ++ show [c | (b, c) <- gateIDs, (chIdx .&. b) == b])
+  where
+    plusMinus = if fromIdx < toIdx then "+" else "-"
+    chIdx = fromIdx `xor` toIdx
+    gateIDs = IntMap.toList (pebblingGateIDs g)
+
+printGraph :: PebblingGraph -> IO ()
+printGraph g = do
   for_
     (allVertices g)
     ( \v -> do
-        putStrLn $ "PebblingVertex " ++ show v
+        putStrLn (prettyVertex g v)
         for_
           (edgesFrom g v)
-          ( \e -> do
-              putStrLn $
-                "  PebblingEdge "
-                  ++ show (vertexFrom g e)
-                  ++ " -> "
-                  ++ show (vertexTo g e)
-                  ++ ": "
-                  ++ show (edgeWeight g e)
-          )
+          (\e -> putStrLn ("  " ++ prettyEdge g e))
     )
+
+testPebbling :: PebblingGraph -> IO ()
+testPebbling g = do
+  -- printGraph g
+  putStrLn "Pebbling computation:"
+  putStrLn ("  Inputs: " ++ show (pebblingInputs g))
+  putStrLn ("  Outputs: " ++ show (IntMap.keys (pebblingOutputBits g)))
+  for_ (pebblingComputation g) (\c -> putStrLn ("  " ++ show c))
   let initV = V 0
       goalV = V (foldl' (.|.) 0 (IntMap.elems (pebblingOutputBits g)))
-  print $ floydWarshallMinimaxShortestPath g initV goalV (const 1) (edgeWeight g)
+      result = floydWarshallMinimaxShortestPath g initV goalV (const 1) (edgeWeight g)
+  case result of
+    Just (path, maxPebbles) -> do
+      putStrLn ("Minimum pebbling found with " ++ show maxPebbles ++ " pebbles")
+      putStrLn "Sequence:"
+      for_
+        path
+        ( \v -> do
+            putStrLn ("  " ++ prettyVertex g v)
+        )
+    Nothing -> putStrLn "No pebbling found"
+
+main :: IO ()
+main = do
+  testPebbling
+    ( pebblingFromGates
+        [ Tof 10 11 12,
+          CNot 10 12 13
+        ]
+        [10, 11]
+        [13]
+    )
+  testPebbling
+    ( pebblingFromGates
+        [ Tof 2 3 11,
+          Tof 11 3 12,
+          Tof 3 4 13,
+          Tof 13 3 14,
+          Tof 12 14 21,
+          Tof 1 11 22
+        ]
+        [1, 2, 3, 4]
+        [21, 22]
+    )

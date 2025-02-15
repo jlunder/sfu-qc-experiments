@@ -38,8 +38,8 @@ default-extensions:
 - ImportQualifiedPost
 - TypeFamilies
 
-library:
-  source-dirs: src
+# library:
+#   source-dirs: src
 
 executables:
   pebble-graph-exe:
@@ -51,8 +51,7 @@ executables:
     - -with-rtsopts=-N
     dependencies:
     - containers
-    - integer-logarithms
-    - pebble-graph
+    #- pebble-graph
 
 tests:
   pebble-graph-test:
@@ -62,5 +61,5 @@ tests:
     - -threaded
     - -rtsopts
     - -with-rtsopts=-N
-    dependencies:
-    - pebble-graph
+    #dependencies:
+    #- pebble-graph
