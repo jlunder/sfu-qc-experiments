@@ -51,6 +51,7 @@ executables:
     - -with-rtsopts=-N
     dependencies:
     - containers
+    - integer-logarithms
     - pebble-graph
 
 tests:
