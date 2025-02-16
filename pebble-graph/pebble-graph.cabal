@@ -20,6 +20,9 @@ extra-source-files:
 executable pebble-graph-exe
   main-is: Main.hs
   other-modules:
+      PebblingGame.FloydWarshall
+      PebblingGame.Graph
+      PebblingGame.TinyXorAnd
       Paths_pebble_graph
   autogen-modules:
       Paths_pebble_graph
