@@ -35,8 +35,12 @@ ghc-options:
 - -Wredundant-constraints
 
 default-extensions:
+- FlexibleContexts
+- FlexibleInstances
 - ImportQualifiedPost
+- StandaloneDeriving
 - TypeFamilies
+- UndecidableInstances
 
 # library:
 #   source-dirs: src

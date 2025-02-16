@@ -1,28 +1,20 @@
-{-# LANGUAGE TypeFamilies #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
-
-{-# HLINT ignore "Use tuple-section" #-}
-{-# HLINT ignore "Use all" #-}
 
 module Main (main) where
 
-import Data.Bits ((.|.))
-import Data.Foldable (Foldable (foldl'), for_)
-import Data.IntMap.Strict qualified as IntMap
+import Data.Foldable (for_)
+import Data.Set qualified as Set
 import PebblingGame.FloydWarshall
-import PebblingGame.Graph
-import PebblingGame.TinyXorAnd
+import PebblingGame.Pebbling
+import PebblingGame.TinyIrreversible
+import PebblingGame.XAG
 
-testPebbling :: PebblingGraph -> IO ()
+testPebbling :: TIStates XorAndGraph -> IO ()
 testPebbling graph = do
-  -- printGraph g
-  putStrLn "Pebbling computation:"
-  putStrLn ("  Inputs: " ++ show (pgInputs graph))
-  putStrLn ("  Outputs: " ++ show (IntMap.keys (pgOutputBits graph)))
-  for_ (pgComputations graph) (\c -> putStrLn ("  " ++ show c))
-  let initV = V 0
-      goalV = V (foldl' (.|.) 0 (IntMap.elems (pgOutputBits graph)))
-      result = floydWarshallMinimaxShortestPath graph initV goalV (edgePebbleCount graph)
+  for_ (prettyComputationGraph cmpts) putStrLn
+  let initV = vertexFromResultState Set.empty
+      goalV = vertexFromResultState (Set.fromList (outputs cmpts))
+      result = floydWarshallMinimaxShortestPath graph initV goalV (toPebbleCount graph)
   case result of
     Just (path, maxPebbles) -> do
       putStrLn ("Minimum pebbling found with " ++ show maxPebbles ++ " pebbles")
@@ -33,30 +25,37 @@ testPebbling graph = do
             putStrLn ("  " ++ prettyVertex graph v)
         )
     Nothing -> putStrLn "No pebbling found"
+  where
+    cmpts = tiComputations graph
 
-trivialPeb :: PebblingGraph
+trivialPeb :: TIStates XorAndGraph
 trivialPeb =
   fromComputations
-    [ And 10 11 12,
-      Xor 10 12 13
-    ]
-    [10, 11]
-    [13]
+    ( xagFromLists
+        [ And 10 11 12,
+          Xor 10 12 13
+        ]
+        [10, 11]
+        [13]
+    )
 
-epflFig2Peb :: PebblingGraph
+epflFig2Peb :: TIStates XorAndGraph
 epflFig2Peb =
   fromComputations
-    [ And 2 3 11,
-      And 11 3 12,
-      And 3 4 13,
-      And 13 3 14,
-      And 12 14 21,
-      And 1 11 22
-    ]
-    [1, 2, 3, 4]
-    [21, 22]
+    ( xagFromLists
+        [ And 2 3 11,
+          And 11 3 12,
+          And 3 4 13,
+          And 13 3 14,
+          And 12 14 21,
+          And 1 11 22
+        ]
+        [1, 2, 3, 4]
+        [21, 22]
+    )
 
 main :: IO ()
 main = do
+  mapM_ putStrLn (prettyStateGraph trivialPeb)
   testPebbling trivialPeb
   testPebbling epflFig2Peb

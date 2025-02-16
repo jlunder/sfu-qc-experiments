@@ -21,16 +21,22 @@ executable pebble-graph-exe
   main-is: Main.hs
   other-modules:
       PebblingGame.FloydWarshall
-      PebblingGame.Graph
-      PebblingGame.TinyXorAnd
+      PebblingGame.Pebbling
+      PebblingGame.TinyIrreversible
+      PebblingGame.TinyReversible
+      PebblingGame.XAG
       Paths_pebble_graph
   autogen-modules:
       Paths_pebble_graph
   hs-source-dirs:
       app
   default-extensions:
+      FlexibleContexts
+      FlexibleInstances
       ImportQualifiedPost
+      StandaloneDeriving
       TypeFamilies
+      UndecidableInstances
   ghc-options: -fno-ignore-asserts -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5
@@ -47,8 +53,12 @@ test-suite pebble-graph-test
   hs-source-dirs:
       test
   default-extensions:
+      FlexibleContexts
+      FlexibleInstances
       ImportQualifiedPost
+      StandaloneDeriving
       TypeFamilies
+      UndecidableInstances
   ghc-options: -fno-ignore-asserts -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5

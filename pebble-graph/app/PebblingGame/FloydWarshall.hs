@@ -4,13 +4,13 @@
 {-# HLINT ignore "Use tuple-section" #-}
 {-# HLINT ignore "Use all" #-}
 
-module PebblingGame.FloydWarshall where
+module PebblingGame.FloydWarshall(floydWarshallMinimaxShortestPath) where
 
 import Data.Foldable (foldl')
 import Data.Map.Strict qualified as Map
-import PebblingGame.Graph
+import PebblingGame.Pebbling
 
-floydWarshallMinimaxShortestPath :: (Graph g, Ord (Vertex g), Ord w) => g -> Vertex g -> Vertex g -> (Edge g -> w) -> Maybe ([Vertex g], w)
+floydWarshallMinimaxShortestPath :: (StateGraph g, Ord w) => g -> Vertex g -> Vertex g -> (Edge g -> w) -> Maybe ([Vertex g], w)
 floydWarshallMinimaxShortestPath graph initV goalV weight =
   walkFinPrevToInit goalV
     >>= (\path -> Just (reverse path, finBottleneck Map.! (initV, goalV)))
