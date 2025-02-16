@@ -1,6 +1,5 @@
 {-# HLINT ignore "Use tuple-section" #-}
 {-# HLINT ignore "Use all" #-}
-{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
 module PebblingGame.TinyReversible
   ( TIStates (..),
