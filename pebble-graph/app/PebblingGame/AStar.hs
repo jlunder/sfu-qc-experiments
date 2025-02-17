@@ -1,59 +1,49 @@
 {-# HLINT ignore "Use tuple-section" #-}
 {-# HLINT ignore "Use all" #-}
 
-module PebblingGame.AStar(aStarMinimaxShortestPath) where
+module PebblingGame.AStar (aStarShortestPath) where
 
-import Data.Foldable (foldl')
+import Data.Foldable (Foldable (foldl'))
+import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
-import PebblingGame.Pebbling
+import Data.PQueue.Min (MinQueue (..))
+import Data.PQueue.Min qualified as MinQ
 
-aStarMinimaxShortestPath :: (StateGraph g, Ord w) => g -> Vertex g -> Vertex g -> (Edge g -> w) -> Maybe ([Vertex g], w)
-aStarMinimaxShortestPath graph initV goalV weight =
-  walkFinPrevToInit goalV
-    >>= (\path -> Just (reverse path, finBottleneck Map.! (initV, goalV)))
+newtype FrontierNode c v = F (c, c, [v])
+
+instance (Eq c, Eq v) => Eq (FrontierNode c v) where
+  (==) (F (xh, xc, xv)) (F (yh, yc, yv)) = xh == yh && xc == yc && xv == yv
+
+instance (Ord c, Ord v) => Ord (FrontierNode c v) where
+  compare (F xt) (F yt) = compare xt yt
+  (<) (F xt) (F yt) = xt < yt
+
+-- v = vertex, e = edge, c = cost
+aStarShortestPath :: (Ord c, Ord v) => c -> v -> (v -> Bool) -> (v -> [(e, v)]) -> (c -> v -> c) -> (c -> v -> e -> c) -> Maybe ([v], c)
+aStarShortestPath initC initV goalF edgesF heuristicF costF =
+  search (MinQ.singleton (F (heuristicF initC initV, initC, [initV]))) Map.empty
   where
-    --walkFinPrevToInit :: Vertex g -> Maybe [Vertex g]
-    walkFinPrevToInit v
-      | v == initV = Just [v]
-      | Map.notMember (initV, v) finPrev = Nothing
-      | otherwise = walkFinPrevToInit (finPrev Map.! (initV, v)) >>= (\remain -> Just (v : remain))
-
-    --initBottleneck :: Map (Vertex g, Vertex g) Int
-    initBottleneck =
-      Map.fromList
-        [ ((vertexFrom graph e, vertexTo graph e), weight e)
-          | e <- edges
-        ]
-    --initPrev :: Map (Vertex g, Vertex g) (Vertex g)
-    initPrev = Map.fromList [((vertexFrom graph e, vertexTo graph e), vertexFrom graph e) | e <- edges]
-
-    vertexes = allVertexes graph
-    edges = concatMap (edgesFrom graph) vertexes
-
-    (finBottleneck, finPrev) =
-      foldl'
-        ( \wState w ->
-            foldl'
-              ( \uState u ->
-                  foldl'
-                    ( \vState@(bottleneck, prev) v ->
-                        if Map.notMember (u, w) bottleneck
-                          || Map.notMember (w, v) bottleneck
-                          then vState
-                          else
-                            let uwvBottleneck = max (bottleneck Map.! (u, w)) (bottleneck Map.! (w, v))
-                             in if Map.notMember (u, v) bottleneck || (uwvBottleneck < bottleneck Map.! (u, v))
-                                  then
-                                    ( Map.insert (u, v) uwvBottleneck bottleneck,
-                                      Map.insert (u, v) (prev Map.! (w, v)) prev
-                                    )
-                                  else vState
-                    )
-                    uState
-                    vertexes
-              )
-              wState
-              vertexes
-        )
-        (initBottleneck, initPrev)
-        vertexes
+    search Empty _ = Nothing
+    search ((F (_, curCost, curPath)) :< remain) visited
+      | goalF (head curPath) = Just (reverse curPath, curCost)
+      | otherwise = search newFrontier newVisited
+      where
+        curV = head curPath
+        newVisited =
+          foldl'
+            (\m (nextV, nextCost) -> Map.insert nextV nextCost m)
+            visited
+            worthwhile
+        newFrontier =
+          foldl'
+            ( \m (nextV, nextCost) ->
+                F (heuristicF nextCost nextV, nextCost, nextV : curPath) :< m
+            )
+            remain
+            worthwhile
+        worthwhile =
+          filter
+            ( \(nextV, nextCost) ->
+                Map.notMember nextV visited || (nextCost < (visited Map.! nextV))
+            )
+            [(nextV, costF curCost curV nextE) | (nextE, nextV) <- edgesF curV]

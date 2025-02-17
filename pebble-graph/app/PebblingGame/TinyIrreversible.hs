@@ -5,6 +5,7 @@ module PebblingGame.TinyIrreversible
   ( TIStates (..),
     toPebbleCount,
     fromComputations,
+    resultStateFromVertex,
     vertexFromResultState,
   )
 where
@@ -46,6 +47,9 @@ instance (Eq (Result d), Ord (Result d), ComputationGraph d) => StateGraph (TISt
 
 available :: Vertex (TIStates d) -> Set (Result d)
 available (V idx) = idx
+
+resultStateFromVertex :: Vertex (TIStates d) -> Set (Result d)
+resultStateFromVertex (V s) = s
 
 vertexFromResultState :: Set (Result d) -> Vertex (TIStates d)
 vertexFromResultState = V
