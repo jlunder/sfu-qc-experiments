@@ -4,7 +4,6 @@
 module PebblingGame.AStar (aStarShortestPath) where
 
 import Data.Foldable (Foldable (foldl'))
-import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
 import Data.PQueue.Min (MinQueue (..))
 import Data.PQueue.Min qualified as MinQ

@@ -10,10 +10,10 @@ module PebblingGame.TinyIrreversible
   )
 where
 
+import Data.List (intercalate)
 import Data.Set (Set, (\\))
 import Data.Set qualified as Set
 import PebblingGame.Pebbling
-import Data.List (intercalate)
 
 newtype (ComputationGraph d) => TIStates d
   = TIStates
