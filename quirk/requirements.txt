@@ -1,4 +1,2 @@
 jupyter
-qiskit
-qiskit[visualization]
-qiskit-aer-gpu
+parsy
