@@ -20,7 +20,8 @@ extra-source-files:
 executable young-synthesis-exe
   main-is: Main.hs
   other-modules:
-      FindFuncs
+      Multilinear
+      YoungSubgroupDecomp
       Paths_young_synthesis
   autogen-modules:
       Paths_young_synthesis
