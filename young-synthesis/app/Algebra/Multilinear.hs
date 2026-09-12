@@ -1,9 +1,15 @@
 {-# OPTIONS_GHC -Wno-missing-export-lists -Wno-incomplete-uni-patterns #-}
-module Multilinear where
+module Algebra.Multilinear (
+  Var(..), Term(..), Func(..), Assigns(..),
+  fromVarList, fromTermList, monomial, varList, varSet, termList, termSet,
+  zeroFunc, oneFunc,
+  plus, sumOfFuncs, times, productOfFuncs,
+  substitute, assigns, eval,
+  assignment, vars,
+  allTerms, allFuncs) where
 
 import Prelude   hiding (all, and, any, not, or, (&&), (||))
 
-import Data.List (intercalate)
 import Data.Map  (Map)
 import Data.Map  qualified as Map
 import Data.Set  (Set)
@@ -18,30 +24,7 @@ newtype Term = Term (Set Var)
 newtype Func = Func (Set Term)
   deriving (Eq, Ord)
 newtype Assigns b = Assigns (Map Var b)
-  deriving (Eq, Ord, Show)
-
-instance Show Var where
-  show v@(Var i) = maybe ("x" ++ show i) id (varNames Map.!? v)
-
-instance Show Term where
-  show (Term vs)
-    | Set.null vs = "1"
-    | otherwise = intercalate " " (map show (Set.toList vs))
-
-instance Show Func where
-  show (Func terms)
-    | Set.null terms = "0"
-    | otherwise = intercalate " + " (map show (Set.toList terms))
-
-x1, x2, x3, x4, s1, s2, s3, s4, y1, y2, y3, y4 :: Var
-[x1, x2, x3, x4,
- s1, s2, s3, s4,
- y1, y2, y3, y4] = [Var i | i <- [1 .. 12]]
-
-varNames :: Map Var String
-varNames =  Map.fromList [(x1, "x1"), (x2, "x2"), (x3, "x3"), (x4, "x4"),
-                          (s1, "s1"), (s2, "s2"), (s3, "s3"), (s4, "s4"),
-                          (y1, "y1"), (y2, "y2"), (y3, "y3"), (y4, "y4")]
+  deriving (Eq, Ord)
 
 fromVarList :: [Var] -> Term
 fromVarList = Term . Set.fromList
@@ -108,17 +91,21 @@ eval (Func terms) vals = sumTerms (Set.toList terms)
     prodVars [] = true
     prodVars vs = (all (assignment vals) vs)
 
-assignedTrue :: Assigns Bool -> Set Var
-assignedTrue (Assigns vals) = Set.fromList (map fst (filter snd (Map.toList vals)))
-
 assignment :: Assigns b -> Var -> b
 assignment (Assigns vmap) var = vmap Map.! var
 
-showEval :: Func -> Assigns Bool -> [Var] -> String
-showEval f vals vs =
-  (intercalate " " [if assignment vals v then "1" else "0" | v <- reverse vs])
-    ++ " = "
-    ++ (if eval f vals then "1" else "0")
-
 vars :: Func -> Set Var
 vars f = foldl' (\vs t -> Set.union vs (varSet t)) Set.empty (termList f)
+
+allTerms :: [Var] -> [Term]
+allTerms = map fromVarList . allTermVars . reverse
+  where
+    allTermVars []       = [[]]
+    allTermVars (v : vs) = (allTermVars vs) ++ map (v :) (allTermVars vs)
+
+allFuncs :: [Term] -> [Func]
+allFuncs = map fromTermList . allFuncTerms . reverse
+  where
+    allFuncTerms []          = [[]]
+    allFuncTerms (t : terms) = (allFuncTerms terms) ++ map (t :) (allFuncTerms terms)
+

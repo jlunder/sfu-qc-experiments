@@ -20,7 +20,8 @@ extra-source-files:
 executable young-synthesis-exe
   main-is: Main.hs
   other-modules:
-      Multilinear
+      Algebra.Multilinear
+      SubgroupDecomp.Enumeration
       YoungSubgroupDecomp
       Paths_young_synthesis
   autogen-modules:

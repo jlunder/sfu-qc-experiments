@@ -4,109 +4,66 @@
 {-# HLINT ignore "Use unwords" #-}
 module Main (main) where
 
-import Data.Array.IArray  (Array, (!))
-import Data.Array.IArray  qualified as Array
-import Data.Array.Unboxed (UArray)
-import Data.Foldable      (Foldable (..), forM_, for_)
-import Data.List          (intercalate)
-import Data.Map           (Map)
-import Data.Map           qualified as Map
-import Data.Maybe         (listToMaybe, mapMaybe)
-import Data.Set           (Set)
-import Data.Set           qualified as Set
+import Data.Array.IArray          (Array, (!))
+import Data.Array.IArray          qualified as Array
+import Data.Array.Unboxed         (UArray)
+import Data.Foldable              (Foldable (..), forM_, for_)
+import Data.List                  (intercalate)
+import Data.Map                   (Map)
+import Data.Map                   qualified as Map
+import Data.Maybe                 (listToMaybe, mapMaybe)
+import Data.Set                   (Set)
+import Data.Set                   qualified as Set
 
-import Debug.Trace        (trace)
+import Debug.Trace                (trace)
 
-import Multilinear
+import Algebra.Multilinear
+import SubgroupDecomp.Enumeration qualified as SGDecomp
 
--- import YoungSubgroupDecomp (decompose)
+-- truthTable :: [Var] -> [[(Var, Bool)]]
+-- truthTable [] = [[]]
+-- truthTable (v : remain) = map ((v, False) :) remainTable ++ map ((v, True) :) remainTable
+--   where
+--     remainTable = truthTable remain
 
--- import Test.QuickCheck qualified as QC
+-- assignsTable :: [Var] -> [Assigns Bool]
+-- assignsTable = map assigns . truthTable
 
-truthTable :: [Var] -> [[(Var, Bool)]]
-truthTable [] = [[]]
-truthTable (v : remain) = map ((v, False) :) remainTable ++ map ((v, True) :) remainTable
-  where
-    remainTable = truthTable remain
+instance Show Var where
+  show v@(Var i) = maybe ("x" ++ show i) id (varNames Map.!? v)
 
-assignsTable :: [Var] -> [Assigns Bool]
-assignsTable = map assigns . truthTable
+instance Show Term where
+  show (Term vs)
+    | Set.null vs = "1"
+    | otherwise = intercalate " " (map show (Set.toList vs))
 
-allTerms :: [Var] -> [Term]
-allTerms = map fromVarList . allTermVars . reverse
-  where
-    allTermVars []       = [[]]
-    allTermVars (v : vs) = (allTermVars vs) ++ map (v :) (allTermVars vs)
+instance Show Func where
+  show (Func terms)
+    | Set.null terms = "0"
+    | otherwise = intercalate " + " (map show (Set.toList terms))
 
-allFuncs :: [Term] -> [Func]
-allFuncs = map fromTermList . allFuncTerms . reverse
-  where
-    allFuncTerms []          = [[]]
-    allFuncTerms (t : terms) = (allFuncTerms terms) ++ map (t :) (allFuncTerms terms)
+varNames :: Map Var String
+varNames =  Map.fromList [(x1, "x1"), (x2, "x2"), (x3, "x3"), (x4, "x4"),
+                          (s1, "s1"), (s2, "s2"), (s3, "s3"), (s4, "s4"),
+                          (y1, "y1"), (y2, "y2"), (y3, "y3"), (y4, "y4")]
 
-findFunc :: Map (Assigns Bool) Bool -> Func
-findFunc evalMap = head (filter fMatches (allFuncs (allTerms evalUsedVars)))
-  where
-    fMatches f = all (\(a, r) -> (eval f a) == r) (Map.toList evalMap)
-    evalUsedVars = Set.toList (foldl' Set.union Set.empty (map assignedTrue (Map.keys evalMap)))
+x1, x2, x3, x4, s1, s2, s3, s4, y1, y2, y3, y4 :: Var
+[x1, x2, x3, x4,
+ s1, s2, s3, s4,
+ y1, y2, y3, y4] = [Var i | i <- [1 .. 12]]
 
--- With f(x) a reversible function from F_2^n -> F_2^n, decompose every f_i(x) into
---   x_i + g_i(g_1..i-1, x_i+1..x_n) + h_i(g_1..i-1, f_i+1..n) = f_i(x)
--- Takes: a list of n items, each: the variables to use for x_i, f_i, s_i; and the multilinear representation of f_i in terms of x_i
--- Note: the f_i and g_i variables should not appear in the definitions of f_i, and there should be exactly n free variables in the f_i's
--- Returns: if a decomposition is found, Just a list of n items, each: the variables x_i, f_i, s_i; and g_i in terms of x and s, h_i in terms of f and s
-decompose :: [(Var, Var, Var, Func)] -> Maybe [(Var, Var, Var, Func, Func)]
-decompose funcs = decomposeAll funcs []
-  where
-    decomposeAll :: [(Var, Var, Var, Func)] -> [(Var, Var, Var, Func, Func, Func)] -> Maybe [(Var, Var, Var, Func, Func)]
-    decomposeAll [] soFar = Just [(xiVar, fiVar, siVar, giFunc, hiFunc) | (xiVar, fiVar, siVar, giFunc, hiFunc, _) <- soFar]
-    decomposeAll ((xiVar, fiVar, siVar, fiFunc):remain) soFar =
-      decomposeOne xiVar fiFunc piqiFuncs >>=
-          (\(giFunc, hiFunc) -> decomposeAll remain ((xiVar, fiVar, siVar, giFunc, hiFunc, makeSiInX giFunc) : soFar))
-      where
-        piqiSoFar = [(sjVar, sjFunc, sjVar, sjFunc) | (_, _, sjVar, _, _, sjFunc) <- soFar]
-        xfRemain = [(xjVar, monomial xjVar, fjVar, fjFunc) | (xjVar, fjVar, _, fjFunc) <- remain]
-        piqiFuncs = piqiSoFar ++ xfRemain
+showEval :: Func -> Assigns Bool -> [Var] -> String
+showEval f vals vs =
+  (intercalate " " [if assignment vals v then "1" else "0" | v <- reverse vs])
+    ++ " = "
+    ++ (if eval f vals then "1" else "0")
 
-        -- s_i = x_i + g_i
-        makeSiInX :: Func -> Func
-        makeSiInX giFunc = plus (monomial xiVar) (makeGiInX giFunc)
-        -- Substitute all s_{j < i} into g_i, so that it's written just in x
-        makeGiInX :: Func -> Func
-        makeGiInX giFunc = foldl' (flip (uncurry substitute)) giFunc [(sjFunc, sjVar) | (_, _, sjVar, _, _, sjFunc) <- soFar]
-
--- With f(x) a reversible function from F_2^n -> F_2^n, decompose f_i(x) into
---   x_i + g_i(p_i) + h_i(q_i) = f_i(x)
---   where:
---     s_i = x_i + g_i(p_i),
---     p_i = (s_1, .., s_i-1, x_i+1, .., x_n),
---     q_i = (s_1, .., s_i-1, f_i+1, .., f_n).
--- Takes: the variable to use for s_i, the f_i we are decomposing, and the lists of functions p_i and q_i
--- Returns: if found, Just g_i and h_i in appropriate terms
-decomposeOne :: Var -> Func -> [(Var, Func, Var, Func)] -> Maybe (Func, Func)
-decomposeOne xiVar fiFunc piqiFuncs =
-  -- f_i is written using x's
-  -- p_ij is written using x's
-  -- q_ij is written using x's
-  -- g_i should be written using p_i's
-  -- h_i should be written using q_i's
-  trace ("decomposeOne " ++ show xiVar ++ " (" ++ show fiFunc ++ ") " ++ show piqiFuncs) $
-    listToMaybe $ mapMaybe (\hiFunc -> giFuncMatching hiFunc >>= (\giFunc -> Just (giFunc, hiFunc))) (allFuncs qiTerms)
-  where
-    piSubs func = foldl' (flip . uncurry $ substitute) func [(pijFunc, pijVar) | (pijVar, pijFunc, _, _) <- piqiFuncs]
-    qiSubs func = foldl' (flip . uncurry $ substitute) func [(qijFunc, qijVar) | (_, _, qijVar, qijFunc) <- piqiFuncs]
-    piTerms = allTerms [pijVar | (pijVar, _, _, _) <- piqiFuncs]
-    qiTerms = allTerms [qijVar | (_, _, qijVar, _) <- piqiFuncs]
-
-    giFuncMatching hiFunc =
-      trace ("giFuncMatching " ++ show hiFunc) $
-        firstEquivalentFunc fiFunc (map (\giFunc -> sumOfFuncs [monomial xiVar, piSubs giFunc, qiSubs hiFunc]) (allFuncs piTerms))
-
-    firstEquivalentFunc _ [] = Nothing
-    firstEquivalentFunc wantedFunc (checkFunc : remain)
-      | trace ("firstEquivalentFunc " ++ show wantedFunc ++ " [" ++ show checkFunc ++ "..]") False = undefined
-      | wantedFunc == checkFunc = Just checkFunc
-      | otherwise = firstEquivalentFunc wantedFunc remain
+-- findFunc :: Map (Assigns Bool) Bool -> Maybe Func
+-- findFunc evalMap = listToMaybe (filter fMatches (allFuncs (allTerms evalUsedVars)))
+--   where
+--     fMatches f = all (\(a, r) -> (eval f a) == r) (Map.toList evalMap)
+--     evalUsedVars = Set.toList (foldl' Set.union Set.empty (map assignedTrue (Map.keys evalMap)))
+--     assignedTrue (Assigns vals) = Set.fromList (map fst (filter snd (Map.toList vals)))
 
 
 main :: IO ()
@@ -144,7 +101,7 @@ main = do
   putStrLn ("y2(s) -> x = " ++ show (substitute y1_x y1 (substitute s2_x s2 (substitute s3_x s3 y2_s))))
   putStrLn ("y3(s) -> x = " ++ show (substitute y1_x y1 (substitute y2_x y2 (substitute s3_x s3 y3_s))))
   putStrLn ""
-  let res = decompose [(x1, y1, s1, y1_x), (x2, y2, s2, y2_x), (x3, y3, s3, y3_x)]
+  let res = SGDecomp.decompose [(x1, y1, s1, y1_x), (x2, y2, s2, y2_x), (x3, y3, s3, y3_x)]
   case res of
     Nothing -> putStrLn("Failed to decompose")
     Just vghs -> forM_ vghs (\(xv, fv, sv, g, h) -> putStrLn (show fv ++ " = " ++ show xv ++ " (+) " ++ show g ++ " (= " ++ show sv ++ "; +) " ++ show h))

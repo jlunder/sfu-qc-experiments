@@ -15,7 +15,7 @@ import Data.Word
 import Ersatz
 import GHC.Generics
 
-import Multilinear
+import Algebra.Multilinear
 
 
 -- With f(x) a reversible function from F_2^n -> F_2^n, decompose every f_i(x) into
