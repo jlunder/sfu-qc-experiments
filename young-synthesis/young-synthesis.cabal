@@ -22,7 +22,8 @@ executable young-synthesis-exe
   other-modules:
       Algebra.Multilinear
       SubgroupDecomp.Enumeration
-      YoungSubgroupDecomp
+      SubgroupDecomp.SmarterEnum
+      SubgroupDecomp.Solver
       Paths_young_synthesis
   autogen-modules:
       Paths_young_synthesis

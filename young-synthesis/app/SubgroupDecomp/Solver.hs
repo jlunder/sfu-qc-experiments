@@ -1,4 +1,4 @@
-module YoungSubgroupDecomp (decompose) where
+module SubgroupDecomp.Solver (decompose) where
 
 import Prelude              hiding (all, and, any, not, or, (&&), (||))
 
@@ -25,20 +25,27 @@ import Algebra.Multilinear
 -- Returns: if a decomposition is found, Just a list of n items, each: the variables x_i, f_i, s_i; and g_i in terms of x and s, h_i in terms of f and s
 decompose :: [(Var, Var, Var, Func)] -> IO (Maybe [(Var, Var, Var, Func, Func)])
 decompose funcs = do
-  decomposeAll funcs []
-  where
-    decomposeAll :: [(Var, Var, Var, Func)] -> [(Var, Var, Var, Func, Func)] -> IO (Maybe [(Var, Var, Var, Func, Func)])
-    decomposeAll [] soFar = return (Just soFar)
-    decomposeAll ((xiVar, fiVar, siVar, fiFunc):remain) soFar = do
-      -- (giFunc, hiFunc) <- decomposeOne xiVar siVar fiFunc piqiFuncs
-      let giFunc = undefined
-          hiFunc = undefined
-      decomposeAll remain ((xiVar, fiVar, siVar, giFunc, hiFunc) : soFar)
-      where
-        -- TODO substitute s's, f's in gj, hj?
-        -- sSoFar = map (\(xjVar, _, sjVar, gjFunc, _) -> let sjFunc = plus (monomial xjVar) (substitute gjFunc) in (sjVar, sjFunc, sjVar, sjFunc)) soFar
-        -- xfRemain = map (\(xjVar, fjVar, _, fjFunc) -> (xjVar, monomial xjVar, fjVar, fjFunc)) sSoFar
-        -- piqiFuncs = sSoFar ++ xfRemain
+  undefined
+  -- decomposeAll funcs []
+  -- where
+  --   decomposeAll :: [(Var, Var, Var, Func)] -> [(Var, Var, Var, Func, Func)] -> IO (Maybe [(Var, Var, Var, Func, Func)])
+  --   decomposeAll [] soFar = return (Just soFar)
+  --   decomposeAll ((xiVar, fiVar, siVar, fiFunc):remain) soFar = do
+  --     -- (giFunc, hiFunc) <- decomposeOne xiVar siVar fiFunc piqiFuncs
+  --     thisGiHi <- decomposeOne xiVar siVar fiFunc piqiFuncs
+  --     case thisGiHi of
+  --       Just (giFunc, hiFunc) -> decomposeRemain giFunc hiFunc
+  --       Nothing               -> return Nothing
+  --     where
+  --       sSoFar = map (\(xjVar, _, sjVar, gjFunc, _) -> let sjFunc = plus (monomial xjVar) (substitute gjFunc) in (sjVar, sjFunc, sjVar, sjFunc)) soFar
+  --       xfRemain = map (\(xjVar, fjVar, _, fjFunc) -> (xjVar, monomial xjVar, fjVar, fjFunc)) sSoFar
+  --       piqiFuncs = sSoFar ++ xfRemain
+  --       -- TODO actually apply substitutions: xi -> si + gi, fi -> si + hi
+  --       decomposeRemain giFunc hiFunc = decomposeAll remainWithSubs ((xiVar, fiVar, siVar, giFunc, hiFunc) : soFarWithSubs)
+  --         where
+  --           remainWithSubs = map (\(xjVar, fjVar, sjVar, fjFunc) -> (xjVar, fjVar, sjVar, substitute (plus ) xiVar fiFunc)) remain
+  --           soFarWithSubs = map (\(xjVar, fjVar, sjVar, fjFunc) -> (xjVar, fjVar, sjVar, substitute (plus ) xiVar fiFunc)) soFar
+
 
 -- With f(x) a reversible function from F_2^n -> F_2^n, decompose f_i(x) into
 --   x_i + g_i(p_i) + h_i(q_i) = f_i(x)
@@ -48,8 +55,8 @@ decompose funcs = do
 --     q_i = (s_1, .., s_i-1, f_i+1, .., f_n).
 -- Takes: the variable to use for s_i, the f_i we are decomposing, and the lists of functions p_i and q_i
 -- Returns: if found, Just g_i and h_i in appropriate terms
-decomposeOne :: Var -> Var -> Func -> [(Var, Func, Var, Func)] -> IO (Maybe (Func, Func))
-decomposeOne xiVar siVar fiFunc piqiFuncs = do
+decomposeOne :: Var -> Var -> Func -> [(Var, Var, Func)] -> IO (Maybe (Func, Func))
+decomposeOne xVars fVars sVars xiVar = do
   undefined
 
 {--

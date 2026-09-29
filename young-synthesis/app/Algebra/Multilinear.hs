@@ -2,19 +2,23 @@
 module Algebra.Multilinear (
   Var(..), Term(..), Func(..), Assigns(..),
   fromVarList, fromTermList, monomial, varList, varSet, termList, termSet,
+  showFunc, showTerm, showVarDefault,
   zeroFunc, oneFunc,
   plus, sumOfFuncs, times, productOfFuncs,
   substitute, assigns, eval,
   assignment, vars,
-  allTerms, allFuncs) where
+  allTerms, allFuncs, allFuncsFromSubst) where
 
-import Prelude   hiding (all, and, any, not, or, (&&), (||))
+import Prelude     hiding (all, and, any, not, or, (&&), (||))
 
-import Data.Map  (Map)
-import Data.Map  qualified as Map
-import Data.Set  (Set)
-import Data.Set  qualified as Set
-import Ersatz    (Boolean (..))
+import Data.Map    (Map)
+import Data.Map    qualified as Map
+import Data.Set    (Set)
+import Data.Set    qualified as Set
+import Ersatz      (Boolean (..))
+
+import Data.List   (intercalate)
+import Debug.Trace (trace)
 
 
 newtype Var = Var Int
@@ -25,6 +29,19 @@ newtype Func = Func (Set Term)
   deriving (Eq, Ord)
 newtype Assigns b = Assigns (Map Var b)
   deriving (Eq, Ord)
+
+showFunc :: (Var -> [Char]) -> Func -> String
+showFunc showVar (Func ts)
+  | ts == Set.empty = "0"
+  | otherwise = intercalate " + " (map (showTerm showVar) . Set.toList $ ts)
+
+showTerm :: (Var -> [Char]) -> Term -> String
+showTerm showVar (Term vs)
+  | vs == Set.empty = "1"
+  | otherwise = intercalate " " (map showVar . Set.toList $ vs)
+
+showVarDefault :: Var -> [Char]
+showVarDefault (Var i) = "X" ++ show i
 
 fromVarList :: [Var] -> Term
 fromVarList = Term . Set.fromList
@@ -57,7 +74,7 @@ plus :: Func -> Func -> Func
 plus (Func fTerms) (Func gTerms) = Func ((Set.union fTerms gTerms) Set.\\ (Set.intersection fTerms gTerms))
 
 sumOfFuncs :: [Func] -> Func
-sumOfFuncs [] = zeroFunc
+sumOfFuncs []              = zeroFunc
 sumOfFuncs (func : remain) = foldl' plus func remain
 
 times :: Func -> Func -> Func
@@ -66,8 +83,8 @@ times f g = foldl' (\p pt -> plus p (Func (Set.singleton pt))) zeroFunc prodTerm
     prodTerms = [Term (Set.union ft gt) | ft <- map varSet (termList f), gt <- map varSet (termList g)]
 
 productOfFuncs :: [Func] -> Func
-productOfFuncs [] = oneFunc
-productOfFuncs (func : remain) = foldl' plus func remain
+productOfFuncs []              = oneFunc
+productOfFuncs (func : remain) = foldl' times func remain
 
 substitute :: Func -> Var -> Func -> Func
 substitute withF forV inF =
@@ -108,4 +125,47 @@ allFuncs = map fromTermList . allFuncTerms . reverse
   where
     allFuncTerms []          = [[]]
     allFuncTerms (t : terms) = (allFuncTerms terms) ++ map (t :) (allFuncTerms terms)
+
+allFuncsFromSubst :: [(Var, Func)] -> [(Func, Func)]
+allFuncsFromSubst substList =
+  -- trace "blurp" $
+  -- traceAll (map (\(f1, f2) -> "f(s): " ++ showFunc showVarDefault f1 ++ ", f(x): " ++ showFunc showVarDefault f2) $
+  --               funcsByOrder substVars) $
+  funcsByOrder substVars
+  where
+    -- traceAll [] result                = result
+    -- traceAll (msg : msgRemain) result = trace msg $ traceAll msgRemain result
+
+    substVars = fst . unzip $ substList
+    substMap = Map.fromList substList
+
+    termsOfOrder _ termVars 0 = [termVars]
+    termsOfOrder [] _ _ = []
+    termsOfOrder unusedVars _ n | length unusedVars < n = []
+    termsOfOrder (v : unusedVarsRemain) termVars n =
+      termsOfOrder unusedVarsRemain (Set.insert v termVars) (n - 1)
+        ++ termsOfOrder unusedVarsRemain termVars n
+
+
+    funcsByOrder :: [Var] -> [(Func, Func)]
+    funcsByOrder termVars =
+      map (\(ts, tf) -> (Func ts, tf)) (allSelections allTermFuncsOrdered)
+      where
+        allTermsOrdered :: [Term]
+        allTermsOrdered = map Term (concat [termsOfOrder termVars Set.empty n | n <- [1 .. length termVars]])
+
+        allTermFuncsOrdered :: [(Term, Func)]
+        allTermFuncsOrdered = map (\t -> (t, substitutedTermFunc t)) allTermsOrdered
+
+        -- substitute all the vars in the term using substMap, which rewrites f_j vars to x_j vars
+        substitutedTermFunc :: Term -> Func
+        substitutedTermFunc t = productOfFuncs (map (\v -> Map.findWithDefault (monomial v) v substMap) (varList t))
+
+        allSelections :: [(Term, Func)] -> [(Set Term, Func)]
+        allSelections termFuncs = nextSelectionsGen [(Set.empty, zeroFunc)] termFuncs
+          where
+            nextSelectionsGen lastGen [] = lastGen
+            nextSelectionsGen lastGen ((t, f) : remain) = nextSelectionsGen thisGen remain
+              where thisGen = lastGen ++ map (\(lt, lf) -> (Set.insert t lt, plus lf f)) lastGen
+
 

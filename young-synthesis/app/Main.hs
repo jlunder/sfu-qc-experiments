@@ -18,7 +18,7 @@ import Data.Set                   qualified as Set
 import Debug.Trace                (trace)
 
 import Algebra.Multilinear
-import SubgroupDecomp.Enumeration qualified as SGDecomp
+import SubgroupDecomp.SmarterEnum qualified as SGDecomp
 
 -- truthTable :: [Var] -> [[(Var, Bool)]]
 -- truthTable [] = [[]]
@@ -33,14 +33,10 @@ instance Show Var where
   show v@(Var i) = maybe ("x" ++ show i) id (varNames Map.!? v)
 
 instance Show Term where
-  show (Term vs)
-    | Set.null vs = "1"
-    | otherwise = intercalate " " (map show (Set.toList vs))
+  show t = showTerm show t
 
 instance Show Func where
-  show (Func terms)
-    | Set.null terms = "0"
-    | otherwise = intercalate " + " (map show (Set.toList terms))
+  show f = showFunc show f
 
 varNames :: Map Var String
 varNames =  Map.fromList [(x1, "x1"), (x2, "x2"), (x3, "x3"), (x4, "x4"),
@@ -89,9 +85,9 @@ main = do
   putStrLn ("y2(x) = " ++ show y2_x)
   putStrLn ("y3(x) = " ++ show y3_x)
   putStrLn ""
-  putStrLn ("s1(x) = " ++ show s1_s)
-  putStrLn ("s2(x) = " ++ show s2_s)
-  putStrLn ("s3(x) = " ++ show s3_s)
+  putStrLn ("s1(s) = " ++ show s1_s)
+  putStrLn ("s2(s) = " ++ show s2_s)
+  putStrLn ("s3(s) = " ++ show s3_s)
   putStrLn ""
   putStrLn ("y1(s) = " ++ show y1_s)
   putStrLn ("y2(s) = " ++ show y2_s)
@@ -101,6 +97,8 @@ main = do
   putStrLn ("y2(s) -> x = " ++ show (substitute y1_x y1 (substitute s2_x s2 (substitute s3_x s3 y2_s))))
   putStrLn ("y3(s) -> x = " ++ show (substitute y1_x y1 (substitute y2_x y2 (substitute s3_x s3 y3_s))))
   putStrLn ""
+  -- putStrLn (show $ allFuncsFromSubst [(s1, s1_x), (s2, s2_x), (s3, s3_x)])
+
   let res = SGDecomp.decompose [(x1, y1, s1, y1_x), (x2, y2, s2, y2_x), (x3, y3, s3, y3_x)]
   case res of
     Nothing -> putStrLn("Failed to decompose")
